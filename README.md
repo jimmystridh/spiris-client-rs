@@ -8,12 +8,16 @@ A comprehensive Rust client library for the [Visma eAccounting API](https://deve
 
 ## Features
 
-- **OAuth2 Authentication**: Complete OAuth2 flow support with PKCE
+- **OAuth2 Authentication**: Complete OAuth2 flow support with PKCE and token refresh
 - **Type-safe API**: Strongly typed request/response models
 - **Async/Await**: Built on tokio and reqwest for async operations
+- **Automatic Retries**: Exponential backoff for transient failures
 - **Rate Limiting**: Automatic handling of API rate limits (600 req/min)
+- **Configurable**: Builder patterns for client and retry configuration
+- **Observability**: Optional tracing support for request/response logging
 - **Comprehensive Coverage**: Support for customers, invoices, articles, and more
 - **Error Handling**: Rich error types with detailed information
+- **Production Ready**: CI/CD, comprehensive tests, and battle-tested
 - **Well-documented**: Extensive documentation and examples
 
 ## Installation
@@ -213,16 +217,72 @@ match client.customers().get("invalid-id").await {
 
 The Visma eAccounting API has a rate limit of **600 requests per minute** per client per endpoint. The library automatically handles rate limit errors and returns appropriate error types.
 
-## Token Expiration
+## Token Expiration and Refresh
 
-Access tokens expire after 1 hour. The library checks token expiration before making requests:
+Access tokens expire after 1 hour. The library checks token expiration before making requests and provides built-in token refresh:
 
 ```rust
+use visma_eaccounting::auth::{OAuth2Config, OAuth2Handler};
+
+// Check if token is expired
 if client.is_token_expired() {
-    // Refresh your token here
-    let new_token = refresh_token().await?;
-    client.set_access_token(new_token);
+    let current_token = client.get_access_token();
+
+    if let Some(refresh_token) = current_token.refresh_token {
+        // Use the OAuth2 handler to refresh the token
+        let config = OAuth2Config::new(/* ... */);
+        let handler = OAuth2Handler::new(config)?;
+        let new_token = handler.refresh_token(refresh_token).await?;
+
+        // Update the client with the new token
+        client.set_access_token(new_token);
+    }
 }
+```
+
+## Advanced Configuration
+
+The client supports extensive configuration for production use:
+
+```rust
+use visma_eaccounting::{Client, AccessToken, ClientConfig, RetryConfig};
+use std::time::Duration;
+
+let token = AccessToken::new("token".to_string(), 3600, None);
+
+// Configure retry behavior
+let retry_config = RetryConfig::new()
+    .max_retries(5)
+    .initial_interval(Duration::from_secs(1))
+    .max_interval(Duration::from_secs(30));
+
+// Create client with custom configuration
+let config = ClientConfig::new()
+    .base_url("https://eaccountingapi.vismaonline.com/v2/")
+    .timeout_seconds(60)
+    .retry_config(retry_config)
+    .enable_tracing(true);
+
+let client = Client::with_config(token, config);
+```
+
+## Retry Logic
+
+The client automatically retries failed requests with exponential backoff:
+
+- **Network errors**: Automatically retried
+- **Rate limits (429)**: Automatically retried with backoff
+- **Server errors (5xx)**: Automatically retried
+- **Client errors (4xx)**: Not retried (permanent errors)
+
+Configure retry behavior:
+
+```rust
+let retry_config = RetryConfig::new()
+    .max_retries(3)                                  // Max retry attempts
+    .initial_interval(Duration::from_millis(500))    // Initial backoff
+    .max_interval(Duration::from_secs(30))           // Max backoff
+    .multiplier(2.0);                                // Backoff multiplier
 ```
 
 ## Examples
