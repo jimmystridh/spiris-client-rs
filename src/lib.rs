@@ -7,6 +7,8 @@
 //! - **OAuth2 Authentication**: Complete OAuth2 flow support with token refresh
 //! - **Type-safe API**: Strongly typed request/response models
 //! - **Async/Await**: Built on tokio and reqwest for async operations
+//! - **Automatic Retries**: Exponential backoff for transient failures
+//! - **Request Tracing**: Built-in logging support with tracing
 //! - **Rate Limiting**: Automatic handling of API rate limits
 //! - **Comprehensive Coverage**: Support for customers, invoices, articles, and more
 //!
@@ -110,17 +112,44 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ## Advanced Configuration
+//!
+//! ```no_run
+//! use visma_eaccounting::{Client, AccessToken, ClientConfig, RetryConfig};
+//! use std::time::Duration;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let token = AccessToken::new("token".to_string(), 3600, None);
+//!
+//! // Configure retry behavior
+//! let retry_config = RetryConfig::new()
+//!     .max_retries(5)
+//!     .initial_interval(Duration::from_millis(1000));
+//!
+//! // Create client with custom configuration
+//! let config = ClientConfig::new()
+//!     .timeout_seconds(60)
+//!     .retry_config(retry_config)
+//!     .enable_tracing(true);
+//!
+//! let client = Client::with_config(token, config);
+//! # Ok(())
+//! # }
+//! ```
 
 pub mod auth;
 pub mod client;
 pub mod endpoints;
 pub mod error;
+pub mod retry;
 pub mod types;
 
 // Re-export commonly used types
 pub use auth::{AccessToken, OAuth2Config, OAuth2Handler};
 pub use client::{Client, ClientConfig};
 pub use error::{Error, Result};
+pub use retry::RetryConfig;
 pub use types::{
     Address, Article, Customer, Invoice, InvoiceRow, PaginatedResponse, PaginationParams,
     QueryParams, ResponseMetadata,
@@ -141,7 +170,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn customers(&self) -> endpoints::CustomersEndpoint {
+    pub fn customers(&self) -> endpoints::CustomersEndpoint<'_> {
         endpoints::CustomersEndpoint::new(self)
     }
 
@@ -158,7 +187,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn invoices(&self) -> endpoints::InvoicesEndpoint {
+    pub fn invoices(&self) -> endpoints::InvoicesEndpoint<'_> {
         endpoints::InvoicesEndpoint::new(self)
     }
 
@@ -175,7 +204,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn articles(&self) -> endpoints::ArticlesEndpoint {
+    pub fn articles(&self) -> endpoints::ArticlesEndpoint<'_> {
         endpoints::ArticlesEndpoint::new(self)
     }
 }
@@ -219,5 +248,21 @@ mod tests {
             .select("Id,Name");
         assert_eq!(params.filter, Some("IsActive eq true".to_string()));
         assert_eq!(params.select, Some("Id,Name".to_string()));
+    }
+
+    #[test]
+    fn test_client_config_builder() {
+        let config = ClientConfig::new()
+            .timeout_seconds(60)
+            .enable_tracing(false);
+
+        assert_eq!(config.timeout_seconds, 60);
+        assert!(!config.enable_tracing);
+    }
+
+    #[test]
+    fn test_retry_config() {
+        let retry = RetryConfig::new().max_retries(5);
+        assert_eq!(retry.max_retries, 5);
     }
 }

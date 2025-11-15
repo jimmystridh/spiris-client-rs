@@ -2,6 +2,7 @@
 
 use crate::auth::AccessToken;
 use crate::error::{Error, Result};
+use crate::retry::RetryConfig;
 use reqwest::{header, Client as HttpClient, Method, RequestBuilder, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -25,6 +26,12 @@ pub struct ClientConfig {
 
     /// Request timeout in seconds.
     pub timeout_seconds: u64,
+
+    /// Retry configuration.
+    pub retry_config: RetryConfig,
+
+    /// Enable request/response logging.
+    pub enable_tracing: bool,
 }
 
 impl Default for ClientConfig {
@@ -33,7 +40,40 @@ impl Default for ClientConfig {
             base_url: DEFAULT_BASE_URL.to_string(),
             user_agent: format!("visma-eaccounting-rust/{}", env!("CARGO_PKG_VERSION")),
             timeout_seconds: 30,
+            retry_config: RetryConfig::default(),
+            enable_tracing: true,
         }
+    }
+}
+
+impl ClientConfig {
+    /// Create a new client configuration.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the base URL.
+    pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
+        self.base_url = base_url.into();
+        self
+    }
+
+    /// Set the request timeout.
+    pub fn timeout_seconds(mut self, seconds: u64) -> Self {
+        self.timeout_seconds = seconds;
+        self
+    }
+
+    /// Set the retry configuration.
+    pub fn retry_config(mut self, retry_config: RetryConfig) -> Self {
+        self.retry_config = retry_config;
+        self
+    }
+
+    /// Enable or disable tracing.
+    pub fn enable_tracing(mut self, enable: bool) -> Self {
+        self.enable_tracing = enable;
+        self
     }
 }
 

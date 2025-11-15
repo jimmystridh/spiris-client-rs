@@ -93,6 +93,7 @@ impl AccessToken {
 
 /// OAuth2 authentication handler.
 pub struct OAuth2Handler {
+    #[allow(dead_code)]
     config: OAuth2Config,
     client: BasicClient,
 }
@@ -161,6 +162,48 @@ impl OAuth2Handler {
             .expires_in()
             .map(|d| d.as_secs() as i64)
             .unwrap_or(3600); // Default to 1 hour
+
+        Ok(AccessToken::new(
+            token_result.access_token().secret().to_string(),
+            expires_in,
+            token_result
+                .refresh_token()
+                .map(|t| t.secret().to_string()),
+        ))
+    }
+
+    /// Refresh an access token using a refresh token.
+    ///
+    /// # Arguments
+    ///
+    /// * `refresh_token` - The refresh token obtained during initial authorization
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use visma_eaccounting::auth::{OAuth2Config, OAuth2Handler};
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let config = OAuth2Config::new("id".to_string(), "secret".to_string(), "uri".to_string());
+    /// let handler = OAuth2Handler::new(config)?;
+    /// let refresh_token = "existing_refresh_token".to_string();
+    /// let new_token = handler.refresh_token(refresh_token).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn refresh_token(&self, refresh_token: String) -> Result<AccessToken> {
+        use oauth2::RefreshToken;
+
+        let token_result = self
+            .client
+            .exchange_refresh_token(&RefreshToken::new(refresh_token))
+            .request_async(oauth2::reqwest::async_http_client)
+            .await
+            .map_err(|e| Error::OAuth2Error(format!("Token refresh failed: {}", e)))?;
+
+        let expires_in = token_result
+            .expires_in()
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(3600);
 
         Ok(AccessToken::new(
             token_result.access_token().secret().to_string(),
