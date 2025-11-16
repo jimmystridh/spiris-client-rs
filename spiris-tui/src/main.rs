@@ -49,6 +49,10 @@ async fn run_app<B: ratatui::backend::Backend>(
     loop {
         terminal.draw(|f| ui::draw(f, app))?;
 
+        // Handle refresh if needed
+        app.refresh_if_needed().await?;
+
+        // Poll for events
         if terminal_event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = terminal_event::read()? {
                 if key.kind == KeyEventKind::Press {
@@ -69,5 +73,8 @@ async fn run_app<B: ratatui::backend::Backend>(
                 }
             }
         }
+
+        // Update app state (message timers, etc.)
+        app.tick();
     }
 }

@@ -43,11 +43,17 @@ pub struct App {
     pub articles: Vec<Article>,
     pub selected_article: usize,
 
+    // Pagination state
+    pub current_page: u32,
+    pub total_pages: u32,
+    pub page_size: u32,
+
     // Search state
     pub search_query: String,
     pub search_results_customers: Vec<Customer>,
     pub search_results_invoices: Vec<Invoice>,
     pub search_mode: SearchMode,
+    pub search_input_mode: bool,
 
     // Statistics
     pub stats_total_customers: usize,
@@ -62,9 +68,11 @@ pub struct App {
     // Status/error messages
     pub status_message: Option<String>,
     pub error_message: Option<String>,
+    pub message_timer: usize,
 
     // Loading state
     pub loading: bool,
+    pub needs_refresh: bool,
 
     // OAuth state
     pub oauth_url: Option<String>,
@@ -102,10 +110,14 @@ impl App {
             selected_invoice: 0,
             articles: Vec::new(),
             selected_article: 0,
+            current_page: 1,
+            total_pages: 1,
+            page_size: 50,
             search_query: String::new(),
             search_results_customers: Vec::new(),
             search_results_invoices: Vec::new(),
             search_mode: SearchMode::All,
+            search_input_mode: false,
             stats_total_customers: 0,
             stats_total_invoices: 0,
             stats_total_articles: 0,
@@ -114,7 +126,9 @@ impl App {
             form_data: Vec::new(),
             status_message: None,
             error_message: None,
+            message_timer: 0,
             loading: false,
+            needs_refresh: false,
             oauth_url: None,
             oauth_waiting: false,
         }
@@ -125,7 +139,10 @@ impl App {
     }
 
     pub fn handle_escape(&mut self) {
-        if self.input_mode == InputMode::Editing {
+        if self.search_input_mode {
+            self.search_input_mode = false;
+            self.input.clear();
+        } else if self.input_mode == InputMode::Editing {
             self.input_mode = InputMode::Normal;
             self.input.clear();
         } else if let Some(prev) = self.previous_screen.take() {
@@ -266,21 +283,33 @@ impl App {
     }
 
     pub fn handle_left(&mut self) {
-        // Could be used for pagination
+        // Previous page
+        if self.current_page > 1 {
+            self.current_page -= 1;
+            self.needs_refresh = true;
+        }
     }
 
     pub fn handle_right(&mut self) {
-        // Could be used for pagination
+        // Next page
+        if self.current_page < self.total_pages {
+            self.current_page += 1;
+            self.needs_refresh = true;
+        }
     }
 
     pub fn handle_char(&mut self, c: char) {
-        if self.input_mode == InputMode::Editing {
+        if self.input_mode == InputMode::Editing || self.search_input_mode {
             self.input.push(c);
+            // Update search query in real-time
+            if self.search_input_mode {
+                self.search_query = self.input.clone();
+            }
         } else {
             match c {
                 'r' => {
                     if self.client.is_some() {
-                        self.refresh_current_screen();
+                        self.needs_refresh = true;
                     }
                 }
                 'n' => {
@@ -313,7 +342,11 @@ impl App {
                         _ => {}
                     }
                 }
-                's' => self.screen = Screen::Search,
+                's' => {
+                    self.screen = Screen::Search;
+                    self.search_input_mode = true;
+                    self.input = self.search_query.clone();
+                }
                 'd' => self.screen = Screen::Dashboard,
                 'h' | '?' => self.screen = Screen::Help,
                 _ => {}
@@ -322,8 +355,12 @@ impl App {
     }
 
     pub fn handle_backspace(&mut self) {
-        if self.input_mode == InputMode::Editing {
+        if self.input_mode == InputMode::Editing || self.search_input_mode {
             self.input.pop();
+            // Update search query in real-time
+            if self.search_input_mode {
+                self.search_query = self.input.clone();
+            }
         }
     }
 
@@ -410,17 +447,17 @@ impl App {
 
                     match client.customers().create(&customer).await {
                         Ok(_) => {
-                            self.status_message = Some("Customer created successfully".to_string());
+                            self.set_status("Customer created successfully".to_string());
                             self.screen = Screen::Customers;
                             self.load_customers().await?;
                         }
                         Err(e) => {
-                            self.error_message = Some(format!("Failed to create customer: {}", e));
+                            self.set_error(format!("Failed to create customer: {}", e));
                         }
                     }
                 }
                 Screen::CustomerEdit(id) => {
-                    let mut customer = Customer {
+                    let customer = Customer {
                         id: Some(id.clone()),
                         name: Some(self.form_data[0].clone()),
                         email: Some(self.form_data[1].clone()),
@@ -436,12 +473,12 @@ impl App {
 
                     match client.customers().update(id, &customer).await {
                         Ok(_) => {
-                            self.status_message = Some("Customer updated successfully".to_string());
+                            self.set_status("Customer updated successfully".to_string());
                             self.screen = Screen::CustomerDetail(id.clone());
                             self.load_customers().await?;
                         }
                         Err(e) => {
-                            self.error_message = Some(format!("Failed to update customer: {}", e));
+                            self.set_error(format!("Failed to update customer: {}", e));
                         }
                     }
                 }
@@ -456,12 +493,12 @@ impl App {
 
                     match client.articles().create(&article).await {
                         Ok(_) => {
-                            self.status_message = Some("Article created successfully".to_string());
+                            self.set_status("Article created successfully".to_string());
                             self.screen = Screen::Articles;
                             self.load_articles().await?;
                         }
                         Err(e) => {
-                            self.error_message = Some(format!("Failed to create article: {}", e));
+                            self.set_error(format!("Failed to create article: {}", e));
                         }
                     }
                 }
@@ -482,12 +519,12 @@ impl App {
 
                         match client.invoices().create(&invoice).await {
                             Ok(_) => {
-                                self.status_message = Some("Invoice created successfully".to_string());
+                                self.set_status("Invoice created successfully".to_string());
                                 self.screen = Screen::Invoices;
                                 self.load_invoices().await?;
                             }
                             Err(e) => {
-                                self.error_message = Some(format!("Failed to create invoice: {}", e));
+                                self.set_error(format!("Failed to create invoice: {}", e));
                             }
                         }
                     }
@@ -503,15 +540,20 @@ impl App {
     pub async fn load_customers(&mut self) -> Result<()> {
         if let Some(client) = &self.client {
             self.loading = true;
-            let params = PaginationParams::new().pagesize(50);
+            let params = PaginationParams::new()
+                .pagesize(self.page_size)
+                .page(self.current_page);
             match client.customers().list(Some(params)).await {
                 Ok(response) => {
                     self.customers = response.data;
+                    // Update total pages based on metadata if available
+                    // For now, just assume there might be more pages
+                    self.total_pages = self.current_page + 1;
                     self.loading = false;
                     self.error_message = None;
                 }
                 Err(e) => {
-                    self.error_message = Some(format!("Failed to load customers: {}", e));
+                    self.set_error(format!("Failed to load customers: {}", e));
                     self.loading = false;
                 }
             }
@@ -522,15 +564,18 @@ impl App {
     pub async fn load_invoices(&mut self) -> Result<()> {
         if let Some(client) = &self.client {
             self.loading = true;
-            let params = PaginationParams::new().pagesize(50);
+            let params = PaginationParams::new()
+                .pagesize(self.page_size)
+                .page(self.current_page);
             match client.invoices().list(Some(params)).await {
                 Ok(response) => {
                     self.invoices = response.data;
+                    self.total_pages = self.current_page + 1;
                     self.loading = false;
                     self.error_message = None;
                 }
                 Err(e) => {
-                    self.error_message = Some(format!("Failed to load invoices: {}", e));
+                    self.set_error(format!("Failed to load invoices: {}", e));
                     self.loading = false;
                 }
             }
@@ -541,16 +586,19 @@ impl App {
     pub async fn load_articles(&mut self) -> Result<()> {
         if let Some(client) = &self.client {
             self.loading = true;
-            let params = PaginationParams::new().pagesize(50);
+            let params = PaginationParams::new()
+                .pagesize(self.page_size)
+                .page(self.current_page);
             match client.articles().list(Some(params)).await {
                 Ok(response) => {
                     self.articles = response.data;
                     self.stats_total_articles = self.articles.len();
+                    self.total_pages = self.current_page + 1;
                     self.loading = false;
                     self.error_message = None;
                 }
                 Err(e) => {
-                    self.error_message = Some(format!("Failed to load articles: {}", e));
+                    self.set_error(format!("Failed to load articles: {}", e));
                     self.loading = false;
                 }
             }
@@ -627,7 +675,7 @@ impl App {
                 }
 
                 self.loading = false;
-                self.status_message = Some(format!(
+                self.set_status(format!(
                     "Found {} customers, {} invoices",
                     self.search_results_customers.len(),
                     self.search_results_invoices.len()
@@ -639,13 +687,14 @@ impl App {
 
     fn export_data(&mut self) -> Result<()> {
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let mut messages = Vec::new();
 
         // Export customers
         if !self.customers.is_empty() {
             let filename = format!("customers_export_{}.json", timestamp);
             let json = serde_json::to_string_pretty(&self.customers)?;
             std::fs::write(&filename, json)?;
-            self.status_message = Some(format!("Exported {} customers to {}", self.customers.len(), filename));
+            messages.push(format!("{} customers", self.customers.len()));
         }
 
         // Export invoices
@@ -653,7 +702,7 @@ impl App {
             let filename = format!("invoices_export_{}.json", timestamp);
             let json = serde_json::to_string_pretty(&self.invoices)?;
             std::fs::write(&filename, json)?;
-            self.status_message = Some(format!("Exported {} invoices to {}", self.invoices.len(), filename));
+            messages.push(format!("{} invoices", self.invoices.len()));
         }
 
         // Export articles
@@ -661,7 +710,13 @@ impl App {
             let filename = format!("articles_export_{}.json", timestamp);
             let json = serde_json::to_string_pretty(&self.articles)?;
             std::fs::write(&filename, json)?;
-            self.status_message = Some(format!("Exported {} articles to {}", self.articles.len(), filename));
+            messages.push(format!("{} articles", self.articles.len()));
+        }
+
+        if !messages.is_empty() {
+            self.set_status(format!("Exported: {}", messages.join(", ")));
+        } else {
+            self.set_error("No data to export".to_string());
         }
 
         Ok(())
@@ -681,38 +736,42 @@ impl App {
         Ok(())
     }
 
-    fn refresh_current_screen(&mut self) {
+    pub async fn refresh_if_needed(&mut self) -> Result<()> {
+        if !self.needs_refresh {
+            return Ok(());
+        }
+
         match self.screen {
-            Screen::Customers => {
-                let app = self.clone();
-                tokio::spawn(async move {
-                    let mut app = app;
-                    let _ = app.load_customers().await;
-                });
-            }
-            Screen::Invoices => {
-                let app = self.clone();
-                tokio::spawn(async move {
-                    let mut app = app;
-                    let _ = app.load_invoices().await;
-                });
-            }
-            Screen::Articles => {
-                let app = self.clone();
-                tokio::spawn(async move {
-                    let mut app = app;
-                    let _ = app.load_articles().await;
-                });
-            }
-            Screen::Dashboard => {
-                let app = self.clone();
-                tokio::spawn(async move {
-                    let mut app = app;
-                    let _ = app.load_dashboard_stats().await;
-                });
-            }
+            Screen::Customers => self.load_customers().await?,
+            Screen::Invoices => self.load_invoices().await?,
+            Screen::Articles => self.load_articles().await?,
+            Screen::Dashboard => self.load_dashboard_stats().await?,
             _ => {}
         }
+
+        self.needs_refresh = false;
+        Ok(())
+    }
+
+    pub fn tick(&mut self) {
+        // Decrement message timer and clear messages when timer reaches 0
+        if self.message_timer > 0 {
+            self.message_timer -= 1;
+            if self.message_timer == 0 {
+                self.status_message = None;
+                self.error_message = None;
+            }
+        }
+    }
+
+    fn set_status(&mut self, message: String) {
+        self.status_message = Some(message);
+        self.message_timer = 30; // 3 seconds at 10 ticks per second
+    }
+
+    fn set_error(&mut self, message: String) {
+        self.error_message = Some(message);
+        self.message_timer = 50; // 5 seconds at 10 ticks per second
     }
 
     async fn start_oauth(&mut self) -> Result<()> {
@@ -777,10 +836,14 @@ impl Clone for App {
             selected_invoice: self.selected_invoice,
             articles: self.articles.clone(),
             selected_article: self.selected_article,
+            current_page: self.current_page,
+            total_pages: self.total_pages,
+            page_size: self.page_size,
             search_query: self.search_query.clone(),
             search_results_customers: self.search_results_customers.clone(),
             search_results_invoices: self.search_results_invoices.clone(),
             search_mode: self.search_mode.clone(),
+            search_input_mode: self.search_input_mode,
             stats_total_customers: self.stats_total_customers,
             stats_total_invoices: self.stats_total_invoices,
             stats_total_articles: self.stats_total_articles,
@@ -789,7 +852,9 @@ impl Clone for App {
             form_data: self.form_data.clone(),
             status_message: self.status_message.clone(),
             error_message: self.error_message.clone(),
+            message_timer: self.message_timer,
             loading: self.loading,
+            needs_refresh: self.needs_refresh,
             oauth_url: self.oauth_url.clone(),
             oauth_waiting: self.oauth_waiting,
         }

@@ -20,6 +20,9 @@ A powerful and comprehensive Terminal User Interface (TUI) for managing all aspe
 - ⌨️ **Full Keyboard Navigation** - Efficient keyboard-driven interface with shortcuts
 - 💾 **Persistent Sessions** - Automatic token storage for seamless usage
 - 🔄 **Real-time Refresh** - Instantly refresh data with 'r' key
+- 📄 **Pagination Support** - Navigate through multiple pages with ← → keys
+- ⏱️ **Auto-clearing Messages** - Status and error messages auto-dismiss after timeout
+- 🔍 **Live Search Input** - Type to search with real-time query updates
 - 🎨 **Beautiful UI** - Clean and intuitive terminal interface built with Ratatui
 - ⚡ **Fast Performance** - Optimized async operations with Tokio
 
@@ -105,8 +108,9 @@ cargo run --release
 | `Tab` | Next screen |
 | `Shift+Tab` | Previous screen |
 | `↑` / `↓` | Navigate lists |
+| `←` / `→` | Previous / Next page |
 | `Enter` | Select / Confirm |
-| `Esc` | Go back / Cancel |
+| `Esc` | Go back / Cancel / Stop typing |
 | `q` | Quit (from main screens) |
 
 #### Context-Specific Actions
@@ -242,10 +246,12 @@ Press `Enter` after each field. A simple invoice with one line item is created a
 #### 12. Search Screen
 
 Real-time search across customers and invoices:
-- Type to enter search query
+- Start typing to enter search mode (query updates live)
 - Press `Enter` to execute search
+- Press `ESC` to stop typing and navigate results
 - Results show matching customers and invoices
 - Search is performed on names, emails, customer IDs, and remarks
+- Client-side filtering for fast results
 
 #### 13. Export Screen
 
@@ -354,11 +360,11 @@ If data doesn't appear:
 
 ## Known Limitations
 
-- **Pagination**: Limited to first 50 results per endpoint (future: load more pages on demand)
 - **Advanced Filtering**: Basic search implemented, advanced filters coming soon
 - **Invoice Editing**: Invoices cannot be edited after creation
 - **CSV Export**: Only JSON export currently supported (CSV/PDF coming soon)
 - **Article Editing**: Articles are view-only (editing coming soon)
+- **Total Page Count**: Page count estimation is approximate (API doesn't return total count)
 
 ## Roadmap
 
@@ -368,10 +374,14 @@ If data doesn't appear:
 - [x] ✅ Add articles/products management
 - [x] ✅ Export functionality (JSON)
 - [x] ✅ Statistics dashboard
-- [ ] 🚧 Improve pagination (load more pages dynamically)
+- [x] ✅ Pagination support (navigate through pages)
+- [x] ✅ Auto-clearing status/error messages
+- [x] ✅ Live search input with real-time updates
+- [x] ✅ Improved refresh mechanism
 - [ ] 🚧 Advanced filtering with multiple criteria
 - [ ] 🚧 Invoice and article editing
 - [ ] 🚧 CSV and PDF export formats
+- [ ] 🚧 Input validation for forms
 - [ ] 🚧 Multi-account support
 - [ ] 🚧 Keyboard shortcut customization
 - [ ] 🚧 Batch operations (bulk delete, bulk edit)

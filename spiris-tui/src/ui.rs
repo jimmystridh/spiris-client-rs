@@ -172,11 +172,16 @@ fn draw_customers(f: &mut Frame, area: Rect, app: &App) {
         })
         .collect();
 
+    let title = format!(
+        "Customers (Page {} | ↑↓: select, ←→: page, Enter: view)",
+        app.current_page
+    );
+
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Customers (↑↓ to select, Enter to view)"),
+                .title(title),
         )
         .highlight_style(
             Style::default()
@@ -310,11 +315,16 @@ fn draw_invoices(f: &mut Frame, area: Rect, app: &App) {
         })
         .collect();
 
+    let title = format!(
+        "Invoices (Page {} | ↑↓: select, ←→: page, Enter: view)",
+        app.current_page
+    );
+
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Invoices (↑↓ to select, Enter to view)"),
+                .title(title),
         )
         .highlight_style(
             Style::default()
@@ -537,11 +547,16 @@ fn draw_articles(f: &mut Frame, area: Rect, app: &App) {
         })
         .collect();
 
+    let title = format!(
+        "Articles (Page {} | ↑↓: select, ←→: page, Enter: view)",
+        app.current_page
+    );
+
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Articles (↑↓ to select, Enter to view)"),
+                .title(title),
         )
         .highlight_style(
             Style::default()
@@ -680,23 +695,35 @@ fn draw_customer_edit_form(f: &mut Frame, area: Rect, app: &App, _id: &str) {
 
 fn draw_search(f: &mut Frame, area: Rect, app: &App) {
     let mut text = vec![
-        Line::from("Search"),
-        Line::from(""),
-        Line::from(format!("Query: {}", app.search_query)),
-        Line::from(""),
-        Line::from(format!(
-            "Results: {} customers, {} invoices",
-            app.search_results_customers.len(),
-            app.search_results_invoices.len()
-        )),
+        Line::from("Search Across Customers and Invoices"),
         Line::from(""),
     ];
 
+    // Show input field
+    if app.search_input_mode {
+        text.push(Line::from(vec![
+            Span::styled("Query: ", Style::default().fg(Color::Yellow)),
+            Span::raw(&app.input),
+            Span::styled("_", Style::default().add_modifier(Modifier::SLOW_BLINK)),
+        ]));
+    } else {
+        text.push(Line::from(format!("Query: {}", app.search_query)));
+    }
+
+    text.push(Line::from(""));
+    text.push(Line::from(format!(
+        "Results: {} customers, {} invoices",
+        app.search_results_customers.len(),
+        app.search_results_invoices.len()
+    )));
+    text.push(Line::from(""));
+
     if app.loading {
         text.push(Line::from("Searching..."));
+    } else if app.search_input_mode {
+        text.push(Line::from("Press Enter to search, ESC to stop typing"));
     } else {
-        text.push(Line::from("Press Enter to search"));
-        text.push(Line::from("Start typing to enter search query"));
+        text.push(Line::from("Type to enter search query, Enter to search"));
     }
 
     let paragraph = Paragraph::new(text)
