@@ -309,6 +309,282 @@ Run the test suite:
 cargo test
 ```
 
+Run specific tests:
+
+```bash
+# Run only library tests
+cargo test --lib
+
+# Run only integration tests
+cargo test --test '*'
+
+# Run with output
+cargo test -- --nocapture
+```
+
+## Performance Tips
+
+### Connection Pooling
+
+The client uses reqwest's built-in connection pooling. Reuse the same `Client` instance for multiple requests:
+
+```rust
+// Good: Reuse client
+let client = Client::new(token);
+for customer_id in customer_ids {
+    let customer = client.customers().get(customer_id).await?;
+}
+
+// Bad: Creating new client for each request
+for customer_id in customer_ids {
+    let client = Client::new(token.clone());
+    let customer = client.customers().get(customer_id).await?;
+}
+```
+
+### Batch Operations
+
+When possible, use pagination to fetch multiple records in one request:
+
+```rust
+// Fetch 100 customers at once instead of 100 individual requests
+let params = PaginationParams::new().pagesize(100);
+let customers = client.customers().list(Some(params)).await?;
+```
+
+### Timeout Configuration
+
+Adjust timeouts based on your network conditions:
+
+```rust
+let config = ClientConfig::new()
+    .timeout_seconds(60)  // Increase for slower networks
+    .retry_config(
+        RetryConfig::new()
+            .max_retries(5)
+            .initial_interval(Duration::from_secs(2))
+    );
+```
+
+## Security Best Practices
+
+### Never Hardcode Credentials
+
+Always use environment variables or secure configuration management:
+
+```rust
+// Good
+let token = std::env::var("SPIRIS_ACCESS_TOKEN")?;
+
+// Bad - Never do this!
+// let token = "hardcoded_token_12345";
+```
+
+### Token Storage
+
+Store refresh tokens securely:
+
+```rust
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+
+// Write token to file with restricted permissions
+let token_json = serde_json::to_string(&token)?;
+fs::write(".spiris_token", token_json)?;
+fs::set_permissions(".spiris_token", fs::Permissions::from_mode(0o600))?;
+```
+
+### HTTPS Only
+
+The client uses HTTPS by default. Never modify the base URL to use HTTP:
+
+```rust
+// The default is already HTTPS - don't change it
+const DEFAULT_BASE_URL: &str = "https://eaccountingapi.vismaonline.com/v2/";
+```
+
+## Troubleshooting
+
+### Token Expired Errors
+
+If you're getting `TokenExpired` errors:
+
+```rust
+// Check token expiration before making requests
+if client.is_token_expired() {
+    // Refresh the token
+    let current_token = client.get_access_token();
+    if let Some(refresh_token) = current_token.refresh_token {
+        let handler = OAuth2Handler::new(oauth_config)?;
+        let new_token = handler.refresh_token(refresh_token).await?;
+        client.set_access_token(new_token);
+    }
+}
+```
+
+### Rate Limiting
+
+If you're hitting rate limits (600 requests/minute):
+
+```rust
+// Configure more aggressive retry backoff
+let retry_config = RetryConfig::new()
+    .max_retries(10)
+    .initial_interval(Duration::from_secs(5))
+    .max_interval(Duration::from_secs(60));
+
+let config = ClientConfig::new().retry_config(retry_config);
+let client = Client::with_config(token, config);
+```
+
+### Network Timeouts
+
+For unreliable networks:
+
+```rust
+let config = ClientConfig::new()
+    .timeout_seconds(120)  // 2 minutes
+    .retry_config(
+        RetryConfig::new()
+            .max_retries(5)
+            .initial_interval(Duration::from_secs(2))
+    );
+```
+
+### Debugging API Requests
+
+Enable tracing to see detailed request/response information:
+
+```rust
+// Add to Cargo.toml
+// tracing-subscriber = "0.3"
+
+use tracing_subscriber;
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
+
+    let config = ClientConfig::new().enable_tracing(true);
+    let client = Client::with_config(token, config);
+
+    // Now you'll see detailed logs
+}
+```
+
+## FAQ
+
+### Q: Do I need to manually refresh tokens?
+
+A: The client checks token expiration before each request and returns a `TokenExpired` error if the token is expired. You can either:
+1. Manually refresh using `OAuth2Handler::refresh_token()`
+2. Implement automatic refresh logic in your application
+
+### Q: What's the rate limit?
+
+A: The API has a rate limit of **600 requests per minute** per client per endpoint. The client automatically retries rate-limited requests with exponential backoff.
+
+### Q: Can I use this with multiple accounts?
+
+A: Yes! Create separate `Client` instances for each account with different access tokens:
+
+```rust
+let client1 = Client::new(token1);
+let client2 = Client::new(token2);
+```
+
+### Q: How do I handle pagination for large datasets?
+
+A: Use a loop to fetch all pages:
+
+```rust
+let mut all_customers = Vec::new();
+let mut page = 0;
+let pagesize = 100;
+
+loop {
+    let params = PaginationParams::new().page(page).pagesize(pagesize);
+    let response = client.customers().list(Some(params)).await?;
+
+    all_customers.extend(response.data);
+
+    if !response.meta.has_next_page {
+        break;
+    }
+    page += 1;
+}
+```
+
+### Q: What happens if my API call fails?
+
+A: The client automatically retries transient failures (network errors, rate limits, 5xx errors) with exponential backoff. Permanent errors (4xx) are returned immediately.
+
+### Q: Can I customize the retry behavior?
+
+A: Yes! See the "Retry Logic" section for configuration options.
+
+### Q: Is this thread-safe?
+
+A: Yes! The `Client` can be safely cloned and shared across threads:
+
+```rust
+let client = Client::new(token);
+
+// Clone for use in different threads
+let client1 = client.clone();
+let client2 = client.clone();
+
+tokio::spawn(async move {
+    client1.customers().list(None).await
+});
+
+tokio::spawn(async move {
+    client2.invoices().list(None).await
+});
+```
+
+### Q: What's the difference between Spiris and Visma eAccounting?
+
+A: Spiris Bokföring och Fakturering is the new name for Visma eAccounting. All API endpoints and functionality remain exactly the same - only the branding has changed.
+
+## Migration Guide
+
+### From visma_eaccounting to spiris_bokforing
+
+If you were using an earlier version with the `visma_eaccounting` package name:
+
+1. Update `Cargo.toml`:
+```toml
+[dependencies]
+# Old
+# visma_eaccounting = "0.1.0"
+
+# New
+spiris_bokforing = "0.1.0"
+```
+
+2. Update imports:
+```rust
+// Old
+use visma_eaccounting::{Client, AccessToken};
+
+// New
+use spiris_bokforing::{Client, AccessToken};
+```
+
+3. Update environment variables:
+```bash
+# Old
+export VISMA_ACCESS_TOKEN="..."
+export VISMA_CLIENT_ID="..."
+
+# New
+export SPIRIS_ACCESS_TOKEN="..."
+export SPIRIS_CLIENT_ID="..."
+```
+
+All API functionality remains identical - no code changes needed beyond the import statements.
+
 ## Documentation
 
 Generate and view the documentation:
@@ -317,9 +593,50 @@ Generate and view the documentation:
 cargo doc --open
 ```
 
+Browse available modules:
+- `spiris_bokforing::auth` - OAuth2 authentication
+- `spiris_bokforing::client` - HTTP client
+- `spiris_bokforing::endpoints` - API endpoints
+- `spiris_bokforing::error` - Error types
+- `spiris_bokforing::types` - Data models
+- `spiris_bokforing::retry` - Retry configuration
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/jimmystridh/claude_jungle_bamboo
+cd claude_jungle_bamboo
+
+# Run tests
+cargo test
+
+# Run examples (requires API credentials)
+export SPIRIS_ACCESS_TOKEN="your_token"
+cargo run --example list_customers
+
+# Check formatting
+cargo fmt --check
+
+# Run clippy
+cargo clippy -- -D warnings
+
+# Build documentation
+cargo doc --no-deps
+```
+
+### Reporting Issues
+
+When reporting issues, please include:
+- Rust version (`rustc --version`)
+- Package version
+- Minimal code example
+- Error messages
+- Expected vs actual behavior
 
 ## License
 

@@ -1,4 +1,4 @@
-//! OAuth2 authentication for the Visma eAccounting API.
+//! OAuth2 authentication for the Spiris Bokföring och Fakturering API.
 
 use crate::error::{Error, Result};
 use chrono::{DateTime, Duration, Utc};
@@ -8,7 +8,10 @@ use oauth2::{
 };
 use serde::{Deserialize, Serialize};
 
-/// OAuth2 configuration for Visma eAccounting.
+/// OAuth2 configuration for Spiris Bokföring och Fakturering.
+///
+/// You can obtain OAuth2 credentials by registering your application
+/// in the [Visma Developer Portal](https://developer.visma.com/).
 #[derive(Debug, Clone)]
 pub struct OAuth2Config {
     /// Client ID from Visma developer portal.
@@ -18,6 +21,7 @@ pub struct OAuth2Config {
     pub client_secret: String,
 
     /// Redirect URI registered in Visma developer portal.
+    /// Must exactly match the URI registered in your application settings.
     pub redirect_uri: String,
 
     /// Authorization endpoint URL.
@@ -41,6 +45,24 @@ impl Default for OAuth2Config {
 
 impl OAuth2Config {
     /// Create a new OAuth2 configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `client_id` - OAuth2 client ID from developer portal
+    /// * `client_secret` - OAuth2 client secret from developer portal
+    /// * `redirect_uri` - Callback URI for OAuth2 flow
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spiris_bokforing::auth::OAuth2Config;
+    ///
+    /// let config = OAuth2Config::new(
+    ///     "your_client_id".to_string(),
+    ///     "your_client_secret".to_string(),
+    ///     "http://localhost:8080/callback".to_string(),
+    /// );
+    /// ```
     pub fn new(client_id: String, client_secret: String, redirect_uri: String) -> Self {
         Self {
             client_id,
@@ -52,15 +74,19 @@ impl OAuth2Config {
 }
 
 /// Access token with expiration tracking.
+///
+/// Tokens typically expire after 1 hour. Use `is_expired()` to check
+/// if a token needs to be refreshed before making API requests.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessToken {
     /// The access token string.
     pub token: String,
 
-    /// When the token expires.
+    /// When the token expires (UTC).
     pub expires_at: DateTime<Utc>,
 
     /// Refresh token for obtaining new access tokens.
+    /// Required for token refresh flow.
     pub refresh_token: Option<String>,
 
     /// Token type (usually "Bearer").
@@ -69,6 +95,25 @@ pub struct AccessToken {
 
 impl AccessToken {
     /// Create a new access token.
+    ///
+    /// # Arguments
+    ///
+    /// * `token` - The access token string
+    /// * `expires_in` - Token lifetime in seconds
+    /// * `refresh_token` - Optional refresh token for token renewal
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spiris_bokforing::AccessToken;
+    ///
+    /// // Token expires in 1 hour (3600 seconds)
+    /// let token = AccessToken::new(
+    ///     "access_token_string".to_string(),
+    ///     3600,
+    ///     Some("refresh_token_string".to_string())
+    /// );
+    /// ```
     pub fn new(token: String, expires_in: i64, refresh_token: Option<String>) -> Self {
         let expires_at = Utc::now() + Duration::seconds(expires_in);
         Self {
@@ -80,12 +125,27 @@ impl AccessToken {
     }
 
     /// Check if the token is expired or will expire soon (within 5 minutes).
+    ///
+    /// Returns `true` if the token should be refreshed.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use spiris_bokforing::AccessToken;
+    /// # let token = AccessToken::new("token".to_string(), 3600, None);
+    /// if token.is_expired() {
+    ///     println!("Token needs to be refreshed!");
+    /// }
+    /// ```
     pub fn is_expired(&self) -> bool {
         let buffer = Duration::minutes(5);
         Utc::now() + buffer >= self.expires_at
     }
 
     /// Get the authorization header value.
+    ///
+    /// Returns a string in the format "Bearer {token}" suitable
+    /// for use in HTTP Authorization headers.
     pub fn authorization_header(&self) -> String {
         format!("{} {}", self.token_type, self.token)
     }
