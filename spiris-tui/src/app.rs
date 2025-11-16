@@ -16,6 +16,7 @@ pub enum Screen {
     InvoiceDetail(String),
     Articles,
     ArticleCreate,
+    ArticleEdit(String),
     ArticleDetail(String),
     Search,
     Export,
@@ -55,6 +56,10 @@ pub struct App {
     pub search_mode: SearchMode,
     pub search_input_mode: bool,
 
+    // Export state
+    pub export_format: ExportFormat,
+    pub export_selection: usize,
+
     // Statistics
     pub stats_total_customers: usize,
     pub stats_total_invoices: usize,
@@ -90,6 +95,12 @@ pub enum SearchMode {
     All,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExportFormat {
+    Json,
+    Csv,
+}
+
 impl App {
     pub fn new() -> Self {
         // Try to load token from file
@@ -122,6 +133,8 @@ impl App {
             search_results_invoices: Vec::new(),
             search_mode: SearchMode::All,
             search_input_mode: false,
+            export_format: ExportFormat::Csv,
+            export_selection: 0,
             stats_total_customers: 0,
             stats_total_invoices: 0,
             stats_total_articles: 0,
@@ -219,7 +232,21 @@ impl App {
                     self.perform_search().await?;
                 }
                 Screen::Export => {
-                    self.export_data()?;
+                    // Toggle format or export based on selection
+                    match self.export_selection {
+                        0 => {
+                            // Toggle format
+                            self.export_format = match self.export_format {
+                                ExportFormat::Json => ExportFormat::Csv,
+                                ExportFormat::Csv => ExportFormat::Json,
+                            };
+                        }
+                        1 => {
+                            // Execute export
+                            self.export_data()?;
+                        }
+                        _ => {}
+                    }
                 }
                 _ => {}
             }
@@ -262,6 +289,11 @@ impl App {
                     self.selected_customer -= 1;
                 }
             }
+            Screen::Export => {
+                if self.export_selection > 0 {
+                    self.export_selection -= 1;
+                }
+            }
             _ => {}
         }
     }
@@ -291,6 +323,11 @@ impl App {
             Screen::Dashboard => {
                 if self.selected_customer < 3 {
                     self.selected_customer += 1;
+                }
+            }
+            Screen::Export => {
+                if self.export_selection < 1 {
+                    self.export_selection += 1;
                 }
             }
             _ => {}
@@ -364,6 +401,11 @@ impl App {
                             self.previous_screen = Some(Screen::CustomerDetail(id.clone()));
                             self.screen = Screen::CustomerEdit(id.clone());
                             self.start_edit_form();
+                        }
+                        Screen::ArticleDetail(ref id) => {
+                            self.previous_screen = Some(Screen::ArticleDetail(id.clone()));
+                            self.screen = Screen::ArticleEdit(id.clone());
+                            self.start_edit_article_form();
                         }
                         _ => {}
                     }
@@ -460,6 +502,27 @@ impl App {
         }
     }
 
+    fn start_edit_article_form(&mut self) {
+        self.input_mode = InputMode::Editing;
+        self.input.clear();
+        self.form_data.clear();
+        self.input_field = 0;
+
+        // Pre-populate form data with existing article data
+        if let Screen::ArticleEdit(ref id) = self.screen {
+            if let Some(article) = self.articles.iter().find(|a| a.id.as_deref() == Some(id)) {
+                self.form_data.push(article.name.clone().unwrap_or_default());
+                self.form_data.push(
+                    article
+                        .sales_price
+                        .map(|p| p.to_string())
+                        .unwrap_or_default(),
+                );
+                self.input_field = 2; // Start at the end to submit immediately or edit
+            }
+        }
+    }
+
     fn validate_email(email: &str) -> bool {
         // Simple email validation
         email.contains('@') && email.contains('.') && email.len() > 3
@@ -502,7 +565,7 @@ impl App {
                     _ => {}
                 }
             }
-            Screen::ArticleCreate => {
+            Screen::ArticleCreate | Screen::ArticleEdit(_) => {
                 match self.input_field {
                     0 => {
                         // Name validation
@@ -557,7 +620,7 @@ impl App {
         match self.screen {
             Screen::CustomerCreate | Screen::CustomerEdit(_) => self.input_field >= 4, // name, email, phone, website
             Screen::InvoiceCreate => self.input_field >= 3,   // customer_id, description, amount
-            Screen::ArticleCreate => self.input_field >= 2,  // name, price
+            Screen::ArticleCreate | Screen::ArticleEdit(_) => self.input_field >= 2,  // name, price
             _ => false,
         }
     }
@@ -633,6 +696,27 @@ impl App {
                         }
                         Err(e) => {
                             self.set_error(format!("Failed to create article: {}", e));
+                        }
+                    }
+                }
+                Screen::ArticleEdit(id) => {
+                    let price: f64 = self.form_data[1].parse().unwrap_or(0.0);
+                    let article = Article {
+                        id: Some(id.clone()),
+                        name: Some(self.form_data[0].clone()),
+                        sales_price: Some(price),
+                        is_active: Some(true),
+                        ..Default::default()
+                    };
+
+                    match client.articles().update(id, &article).await {
+                        Ok(_) => {
+                            self.set_status("Article updated successfully".to_string());
+                            self.screen = Screen::ArticleDetail(id.clone());
+                            self.load_articles().await?;
+                        }
+                        Err(e) => {
+                            self.set_error(format!("Failed to update article: {}", e));
                         }
                     }
                 }
@@ -823,32 +907,146 @@ impl App {
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
         let mut messages = Vec::new();
 
-        // Export customers
-        if !self.customers.is_empty() {
-            let filename = format!("customers_export_{}.json", timestamp);
-            let json = serde_json::to_string_pretty(&self.customers)?;
-            std::fs::write(&filename, json)?;
-            messages.push(format!("{} customers", self.customers.len()));
-        }
+        match self.export_format {
+            ExportFormat::Json => {
+                // Export customers
+                if !self.customers.is_empty() {
+                    let filename = format!("customers_export_{}.json", timestamp);
+                    let json = serde_json::to_string_pretty(&self.customers)?;
+                    std::fs::write(&filename, json)?;
+                    messages.push(format!("{} customers", self.customers.len()));
+                }
 
-        // Export invoices
-        if !self.invoices.is_empty() {
-            let filename = format!("invoices_export_{}.json", timestamp);
-            let json = serde_json::to_string_pretty(&self.invoices)?;
-            std::fs::write(&filename, json)?;
-            messages.push(format!("{} invoices", self.invoices.len()));
-        }
+                // Export invoices
+                if !self.invoices.is_empty() {
+                    let filename = format!("invoices_export_{}.json", timestamp);
+                    let json = serde_json::to_string_pretty(&self.invoices)?;
+                    std::fs::write(&filename, json)?;
+                    messages.push(format!("{} invoices", self.invoices.len()));
+                }
 
-        // Export articles
-        if !self.articles.is_empty() {
-            let filename = format!("articles_export_{}.json", timestamp);
-            let json = serde_json::to_string_pretty(&self.articles)?;
-            std::fs::write(&filename, json)?;
-            messages.push(format!("{} articles", self.articles.len()));
+                // Export articles
+                if !self.articles.is_empty() {
+                    let filename = format!("articles_export_{}.json", timestamp);
+                    let json = serde_json::to_string_pretty(&self.articles)?;
+                    std::fs::write(&filename, json)?;
+                    messages.push(format!("{} articles", self.articles.len()));
+                }
+            }
+            ExportFormat::Csv => {
+                // Export customers to CSV
+                if !self.customers.is_empty() {
+                    let filename = format!("customers_export_{}.csv", timestamp);
+                    let mut wtr = csv::Writer::from_path(&filename)?;
+
+                    // Write header
+                    wtr.write_record(&[
+                        "ID",
+                        "Customer Number",
+                        "Name",
+                        "Email",
+                        "Phone",
+                        "Website",
+                        "Is Active",
+                    ])?;
+
+                    // Write data
+                    for customer in &self.customers {
+                        wtr.write_record(&[
+                            customer.id.as_deref().unwrap_or(""),
+                            &customer.customer_number.as_ref().map(|n| n.to_string()).unwrap_or_default(),
+                            customer.name.as_deref().unwrap_or(""),
+                            customer.email.as_deref().unwrap_or(""),
+                            customer.phone.as_deref().unwrap_or(""),
+                            customer.website.as_deref().unwrap_or(""),
+                            &customer.is_active.map(|a| a.to_string()).unwrap_or_default(),
+                        ])?;
+                    }
+                    wtr.flush()?;
+                    messages.push(format!("{} customers", self.customers.len()));
+                }
+
+                // Export invoices to CSV
+                if !self.invoices.is_empty() {
+                    let filename = format!("invoices_export_{}.csv", timestamp);
+                    let mut wtr = csv::Writer::from_path(&filename)?;
+
+                    // Write header
+                    wtr.write_record(&[
+                        "ID",
+                        "Invoice Number",
+                        "Customer ID",
+                        "Date",
+                        "Total Amount",
+                        "VAT Amount",
+                        "Total Including VAT",
+                        "Remarks",
+                    ])?;
+
+                    // Write data
+                    for invoice in &self.invoices {
+                        wtr.write_record(&[
+                            invoice.id.as_deref().unwrap_or(""),
+                            &invoice.invoice_number.as_ref().map(|n| n.to_string()).unwrap_or_default(),
+                            invoice.customer_id.as_deref().unwrap_or(""),
+                            &invoice
+                                .invoice_date
+                                .as_ref()
+                                .map(|d| d.format("%Y-%m-%d").to_string())
+                                .unwrap_or_default(),
+                            &invoice.total_amount.map(|t| t.to_string()).unwrap_or_default(),
+                            &invoice.total_vat_amount.map(|t| t.to_string()).unwrap_or_default(),
+                            &invoice
+                                .total_amount_including_vat
+                                .map(|t| t.to_string())
+                                .unwrap_or_default(),
+                            invoice.remarks.as_deref().unwrap_or(""),
+                        ])?;
+                    }
+                    wtr.flush()?;
+                    messages.push(format!("{} invoices", self.invoices.len()));
+                }
+
+                // Export articles to CSV
+                if !self.articles.is_empty() {
+                    let filename = format!("articles_export_{}.csv", timestamp);
+                    let mut wtr = csv::Writer::from_path(&filename)?;
+
+                    // Write header
+                    wtr.write_record(&[
+                        "ID",
+                        "Article Number",
+                        "Name",
+                        "Unit",
+                        "Sales Price",
+                        "Purchase Price",
+                        "Is Active",
+                    ])?;
+
+                    // Write data
+                    for article in &self.articles {
+                        wtr.write_record(&[
+                            article.id.as_deref().unwrap_or(""),
+                            &article.article_number.as_ref().map(|n| n.to_string()).unwrap_or_default(),
+                            article.name.as_deref().unwrap_or(""),
+                            article.unit.as_deref().unwrap_or(""),
+                            &article.sales_price.map(|p| p.to_string()).unwrap_or_default(),
+                            &article.purchase_price.map(|p| p.to_string()).unwrap_or_default(),
+                            &article.is_active.map(|a| a.to_string()).unwrap_or_default(),
+                        ])?;
+                    }
+                    wtr.flush()?;
+                    messages.push(format!("{} articles", self.articles.len()));
+                }
+            }
         }
 
         if !messages.is_empty() {
-            self.set_status(format!("Exported: {}", messages.join(", ")));
+            let format_name = match self.export_format {
+                ExportFormat::Json => "JSON",
+                ExportFormat::Csv => "CSV",
+            };
+            self.set_status(format!("Exported to {}: {}", format_name, messages.join(", ")));
         } else {
             self.set_error("No data to export".to_string());
         }
@@ -1028,6 +1226,8 @@ impl Clone for App {
             search_results_invoices: self.search_results_invoices.clone(),
             search_mode: self.search_mode.clone(),
             search_input_mode: self.search_input_mode,
+            export_format: self.export_format.clone(),
+            export_selection: self.export_selection,
             stats_total_customers: self.stats_total_customers,
             stats_total_invoices: self.stats_total_invoices,
             stats_total_articles: self.stats_total_articles,

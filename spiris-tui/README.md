@@ -11,9 +11,9 @@ A powerful and comprehensive Terminal User Interface (TUI) for managing all aspe
 - 📊 **Statistics Dashboard** - View real-time statistics for customers, invoices, and articles
 - 👥 **Customer Management** - Full CRUD operations: List, view, create, edit, delete, and search customers
 - 🧾 **Invoice Management** - Complete invoice handling: Browse, view, create, delete invoices with line items
-- 🏷️ **Article/Product Management** - Manage your product catalog: Create, view, delete articles with prices
+- 🏷️ **Article/Product Management** - Full CRUD operations: Create, view, edit, delete articles with prices
 - 🔍 **Smart Search** - Search across customers and invoices with real-time filtering
-- 💾 **Data Export** - Export all data to JSON files with timestamps
+- 💾 **Data Export** - Export all data to JSON or CSV formats with timestamps
 - ✅ **Input Validation** - Real-time validation for all form inputs with helpful error messages
 
 ### User Experience
@@ -123,8 +123,8 @@ cargo run --release
 | Key | Action | Available In |
 |-----|--------|--------------|
 | `n` | Create new | Customers, Invoices, Articles |
-| `e` | Edit selected item | Customer Detail |
-| `x` | Delete selected item | Customer/Invoice/Article Detail |
+| `e` | Edit selected item | Customer Detail, Article Detail |
+| `x` | Delete selected item (with confirmation) | Customer/Invoice/Article Detail |
 | `r` | Refresh current view | Customers, Invoices, Articles, Dashboard |
 | `d` | Go to Dashboard | Any screen |
 | `s` | Open Search | Any screen |
@@ -238,9 +238,17 @@ View complete article information:
 - Purchase price
 - Active status
 
-Press `Esc` to return to the articles list.
+Press `e` to edit the article, `x` to delete (with confirmation), or `Esc` to return to the articles list.
 
-#### 11. Invoice Creation
+#### 11. Article Editing
+
+From the Article Detail view, press `e` to edit:
+1. Pre-populated form with existing data
+2. Modify any fields (name, sales price)
+3. Press `Enter` to save changes
+4. Returns to Article Detail view after successful update
+
+#### 12. Invoice Creation
 
 Fill in the form fields:
 1. Customer ID (required)
@@ -249,7 +257,7 @@ Fill in the form fields:
 
 Press `Enter` after each field. A simple invoice with one line item is created automatically.
 
-#### 12. Search Screen
+#### 13. Search Screen
 
 Real-time search across customers and invoices:
 - Start typing to enter search mode (query updates live)
@@ -259,18 +267,21 @@ Real-time search across customers and invoices:
 - Search is performed on names, emails, customer IDs, and remarks
 - Client-side filtering for fast results
 
-#### 13. Export Screen
+#### 14. Export Screen
 
-Export all loaded data to JSON files:
-- Press `Enter` to export
+Export all loaded data to JSON or CSV files:
+- Use `↑`/`↓` to select format or export option
+- Press `Enter` on "Format" to toggle between JSON and CSV
+- Press `Enter` on "Export All Data" to export
 - Creates timestamped files:
-  - `customers_export_YYYYMMDD_HHMMSS.json`
-  - `invoices_export_YYYYMMDD_HHMMSS.json`
-  - `articles_export_YYYYMMDD_HHMMSS.json`
+  - JSON: `customers_export_YYYYMMDD_HHMMSS.json`
+  - CSV: `customers_export_YYYYMMDD_HHMMSS.csv`
+  - Same pattern for invoices and articles
+- CSV files include headers and all relevant fields
 - Files are saved in the current directory
 - Status message shows export results
 
-#### 14. Help Screen
+#### 15. Help Screen
 
 Press `h` or `?` from any screen to view the help page with all keyboard shortcuts and available screens.
 
@@ -368,8 +379,7 @@ If data doesn't appear:
 
 - **Advanced Filtering**: Basic search implemented, advanced filters coming soon
 - **Invoice Editing**: Invoices cannot be edited after creation (can only delete)
-- **CSV Export**: Only JSON export currently supported (CSV/PDF coming soon)
-- **Article Editing**: Articles cannot be edited after creation (can only delete)
+- **PDF Export**: Only JSON and CSV export currently supported (PDF coming soon)
 - **Total Page Count**: Page count estimation is approximate (API doesn't return total count)
 
 ## Roadmap
@@ -391,9 +401,12 @@ If data doesn't appear:
 - [x] ✅ Form progress indicators (Field X/Y)
 - [x] ✅ Enhanced loading indicators with better visuals
 - [x] ✅ Color-coded UI states (success, error, warning, loading)
+- [x] ✅ Article editing (complete CRUD for articles)
+- [x] ✅ CSV export format (in addition to JSON)
 - [ ] 🚧 Advanced filtering with multiple criteria
-- [ ] 🚧 Invoice and article editing
-- [ ] 🚧 CSV and PDF export formats
+- [ ] 🚧 Invoice editing
+- [ ] 🚧 PDF export format
+- [ ] 🚧 Sort options for lists (by name, date, amount, etc.)
 - [ ] 🚧 Multi-account support
 - [ ] 🚧 Keyboard shortcut customization
 - [ ] 🚧 Batch operations (bulk delete, bulk edit)

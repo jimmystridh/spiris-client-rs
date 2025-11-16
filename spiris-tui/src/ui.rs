@@ -34,6 +34,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Screen::InvoiceDetail(id) => draw_invoice_detail(f, chunks[1], app, id),
         Screen::Articles => draw_articles(f, chunks[1], app),
         Screen::ArticleCreate => draw_article_form(f, chunks[1], app),
+        Screen::ArticleEdit(id) => draw_article_edit_form(f, chunks[1], app, id),
         Screen::ArticleDetail(id) => draw_article_detail(f, chunks[1], app, id),
         Screen::Search => draw_search(f, chunks[1], app),
         Screen::Export => draw_export(f, chunks[1], app),
@@ -101,7 +102,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
                             _ => "Enter: Submit | ESC: Cancel",
                         }
                     }
-                    Screen::ArticleCreate => {
+                    Screen::ArticleCreate | Screen::ArticleEdit(_) => {
                         match app.input_field {
                             0 => "Name (required) | Enter: Next field | ESC: Cancel",
                             1 => "Sales Price (required) | Enter: Submit | ESC: Cancel",
@@ -129,9 +130,9 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
                     Screen::Invoices => "↑↓: Select | ←→: Page | Enter: View | n: New | r: Refresh | s: Search | q: Quit",
                     Screen::InvoiceDetail(_) => "x: Delete | ESC: Back | s: Search | d: Dashboard",
                     Screen::Articles => "↑↓: Select | ←→: Page | Enter: View | n: New | r: Refresh | s: Search | q: Quit",
-                    Screen::ArticleDetail(_) => "x: Delete | ESC: Back | s: Search | d: Dashboard",
+                    Screen::ArticleDetail(_) => "e: Edit | x: Delete | ESC: Back | s: Search | d: Dashboard",
                     Screen::Search => "Start typing to search | Enter: Execute | ESC: Back | d: Dashboard",
-                    Screen::Export => "Enter: Export | ESC: Back | d: Dashboard | h: Help",
+                    Screen::Export => "↑↓: Navigate | Enter: Select/Toggle | ESC: Back | d: Dashboard",
                     Screen::Help => "ESC: Back | d: Dashboard | s: Search",
                     Screen::Auth => "Enter: Start OAuth | q: Quit",
                     _ => "ESC: Back | s: Search | d: Dashboard | h: Help",
@@ -789,8 +790,58 @@ fn draw_article_detail(f: &mut Frame, area: Rect, app: &App, id: &str) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Article Detail (x: delete | ESC: back)"),
+                .title("Article Detail (e: edit | x: delete | ESC: back)"),
         )
+        .wrap(Wrap { trim: false });
+
+    f.render_widget(paragraph, area);
+}
+
+fn draw_article_edit_form(f: &mut Frame, area: Rect, app: &App, _id: &str) {
+    let fields = vec!["Name", "Sales Price (SEK)"];
+    let current_field = app.input_field;
+
+    let mut text = vec![
+        Line::from("Edit Article"),
+        Line::from(Span::styled(
+            format!("Field {}/{}", current_field + 1, fields.len()),
+            Style::default().fg(Color::Cyan),
+        )),
+        Line::from(""),
+    ];
+
+    for (i, field) in fields.iter().enumerate() {
+        let value = app.form_data.get(i).map(|s| s.as_str()).unwrap_or("");
+        let line = if i == current_field && app.input_mode == InputMode::Editing {
+            Line::from(vec![
+                Span::styled(format!("{}: ", field), Style::default().fg(Color::Yellow)),
+                Span::raw(&app.input),
+                Span::styled("_", Style::default().add_modifier(Modifier::SLOW_BLINK)),
+            ])
+        } else {
+            Line::from(format!("{}: {}", field, value))
+        };
+        text.push(line);
+    }
+
+    if let Some(err) = &app.validation_error {
+        text.push(Line::from(""));
+        text.push(Line::from(Span::styled(
+            format!("⚠ {}", err),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )));
+    }
+
+    if let Some(err) = &app.error_message {
+        text.push(Line::from(""));
+        text.push(Line::from(Span::styled(
+            err.clone(),
+            Style::default().fg(Color::Red),
+        )));
+    }
+
+    let paragraph = Paragraph::new(text)
+        .block(Block::default().borders(Borders::ALL).title("Edit Article"))
         .wrap(Wrap { trim: false });
 
     f.render_widget(paragraph, area);
@@ -942,40 +993,66 @@ fn draw_search(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_export(f: &mut Frame, area: Rect, app: &App) {
-    let mut text = vec![
-        Line::from("Export Data"),
+    use crate::app::ExportFormat;
+
+    let format_str = match app.export_format {
+        ExportFormat::Json => "JSON",
+        ExportFormat::Csv => "CSV",
+    };
+
+    let items = vec![
+        ListItem::new(format!("Format: {} (press Enter to toggle)", format_str)),
+        ListItem::new("Export All Data (press Enter)"),
+    ];
+
+    let mut list_text = vec![
         Line::from(""),
-        Line::from(format!(
-            "Ready to export {} customers",
-            app.customers.len()
-        )),
-        Line::from(format!(
-            "Ready to export {} invoices",
-            app.invoices.len()
-        )),
-        Line::from(format!(
-            "Ready to export {} articles",
-            app.articles.len()
+        Line::from(Span::styled(
+            "Export Data",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from("Press Enter to export all data to JSON files"),
+        Line::from(format!("Ready to export {} customers", app.customers.len())),
+        Line::from(format!("Ready to export {} invoices", app.invoices.len())),
+        Line::from(format!("Ready to export {} articles", app.articles.len())),
         Line::from(""),
     ];
 
     if let Some(msg) = &app.status_message {
-        text.push(Line::from(""));
-        text.push(Line::from(Span::styled(
-            msg.clone(),
+        list_text.push(Line::from(""));
+        list_text.push(Line::from(Span::styled(
+            format!("✓ {}", msg),
             Style::default().fg(Color::Green),
         )));
     }
 
-    let paragraph = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title("Export"))
+    // Calculate layout for list and info
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(5), Constraint::Min(0)])
+        .split(area);
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Options"))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Blue)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+
+    let info = Paragraph::new(list_text)
+        .block(Block::default().borders(Borders::ALL).title("Info"))
         .wrap(Wrap { trim: false })
         .alignment(Alignment::Center);
 
-    f.render_widget(paragraph, area);
+    f.render_stateful_widget(
+        list,
+        chunks[0],
+        &mut ratatui::widgets::ListState::default().with_selected(Some(app.export_selection)),
+    );
+
+    f.render_widget(info, chunks[1]);
 }
 
 fn draw_confirmation_dialog(f: &mut Frame, app: &App) {
