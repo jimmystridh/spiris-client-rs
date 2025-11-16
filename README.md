@@ -1,10 +1,10 @@
-# Visma eAccounting API Client for Rust
+# Spiris Bokföring och Fakturering API Client for Rust
 
-[![Crates.io](https://img.shields.io/crates/v/visma_eaccounting.svg)](https://crates.io/crates/visma_eaccounting)
-[![Documentation](https://docs.rs/visma_eaccounting/badge.svg)](https://docs.rs/visma_eaccounting)
+[![Crates.io](https://img.shields.io/crates/v/spiris_bokforing.svg)](https://crates.io/crates/spiris_bokforing)
+[![Documentation](https://docs.rs/spiris_bokforing/badge.svg)](https://docs.rs/spiris_bokforing)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
 
-A comprehensive Rust client library for the [Visma eAccounting API](https://developer.visma.com/api/eaccounting).
+A comprehensive Rust client library for the [Spiris Bokföring och Fakturering API](https://developer.visma.com/api/eaccounting) (formerly Visma eAccounting).
 
 ## Features
 
@@ -26,14 +26,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-visma_eaccounting = "0.1.0"
+spiris_bokforing = "0.1.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
 ## Quick Start
 
 ```rust
-use visma_eaccounting::{Client, AccessToken};
+use spiris_bokforing::{Client, AccessToken};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Authentication
 
-The Visma eAccounting API uses OAuth2 for authentication. Here's how to authenticate:
+The Spiris API uses OAuth2 for authentication. Here's how to authenticate:
 
 ### 1. Register Your Application
 
@@ -65,7 +65,7 @@ First, register your application in the [Visma Developer Portal](https://develop
 ### 2. Implement OAuth2 Flow
 
 ```rust
-use visma_eaccounting::auth::{OAuth2Config, OAuth2Handler};
+use spiris_bokforing::auth::{OAuth2Config, OAuth2Handler};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### List Customers with Pagination
 
 ```rust
-use visma_eaccounting::{Client, AccessToken, PaginationParams};
+use spiris_bokforing::{Client, AccessToken, PaginationParams};
 
 let token = AccessToken::new("your_token".to_string(), 3600, None);
 let client = Client::new(token);
@@ -112,7 +112,7 @@ for customer in customers.data {
 ### Create a Customer
 
 ```rust
-use visma_eaccounting::{Client, Customer, Address};
+use spiris_bokforing::{Client, Customer, Address};
 
 let new_customer = Customer {
     name: Some("Acme Corporation".to_string()),
@@ -137,7 +137,7 @@ println!("Created customer with ID: {:?}", created.id);
 ### Create an Invoice
 
 ```rust
-use visma_eaccounting::{Client, Invoice, InvoiceRow};
+use spiris_bokforing::{Client, Invoice, InvoiceRow};
 use chrono::Utc;
 
 let invoice = Invoice {
@@ -162,7 +162,7 @@ println!("Invoice #{:?} created", created_invoice.invoice_number);
 ### Search with Filters
 
 ```rust
-use visma_eaccounting::QueryParams;
+use spiris_bokforing::QueryParams;
 
 let query = QueryParams::new()
     .filter("IsActive eq true")
@@ -174,7 +174,7 @@ let active_customers = client.customers().search(query, None).await?;
 ### Manage Articles/Products
 
 ```rust
-use visma_eaccounting::Article;
+use spiris_bokforing::Article;
 
 let article = Article {
     name: Some("Consulting Hour".to_string()),
@@ -202,7 +202,7 @@ More endpoints will be added in future releases.
 The library provides comprehensive error handling:
 
 ```rust
-use visma_eaccounting::Error;
+use spiris_bokforing::Error;
 
 match client.customers().get("invalid-id").await {
     Ok(customer) => println!("Found customer: {:?}", customer.name),
@@ -215,14 +215,14 @@ match client.customers().get("invalid-id").await {
 
 ## Rate Limiting
 
-The Visma eAccounting API has a rate limit of **600 requests per minute** per client per endpoint. The library automatically handles rate limit errors and returns appropriate error types.
+The Spiris API has a rate limit of **600 requests per minute** per client per endpoint. The library automatically handles rate limit errors and returns appropriate error types.
 
 ## Token Expiration and Refresh
 
 Access tokens expire after 1 hour. The library checks token expiration before making requests and provides built-in token refresh:
 
 ```rust
-use visma_eaccounting::auth::{OAuth2Config, OAuth2Handler};
+use spiris_bokforing::auth::{OAuth2Config, OAuth2Handler};
 
 // Check if token is expired
 if client.is_token_expired() {
@@ -245,7 +245,7 @@ if client.is_token_expired() {
 The client supports extensive configuration for production use:
 
 ```rust
-use visma_eaccounting::{Client, AccessToken, ClientConfig, RetryConfig};
+use spiris_bokforing::{Client, AccessToken, ClientConfig, RetryConfig};
 use std::time::Duration;
 
 let token = AccessToken::new("token".to_string(), 3600, None);
@@ -297,7 +297,7 @@ The `examples/` directory contains complete working examples:
 Run an example with:
 
 ```bash
-export VISMA_ACCESS_TOKEN="your_token_here"
+export SPIRIS_ACCESS_TOKEN="your_token_here"
 cargo run --example list_customers
 ```
 
@@ -332,11 +332,15 @@ at your option.
 
 ## Resources
 
-- [Visma eAccounting API Documentation](https://developer.visma.com/api/eaccounting)
+- [Spiris Bokföring och Fakturering API Documentation](https://developer.visma.com/api/eaccounting)
 - [Visma Developer Portal](https://developer.visma.com/)
 - [API Authentication Guide](https://developer.vismaonline.com/docs/authentication)
 - [Visma Community Forum](https://community.visma.com/t5/Visma-eAccounting-API/ct-p/IN_MA_eAccountingAPI)
 
+## Note
+
+Spiris Bokföring och Fakturering was formerly known as Visma eAccounting. All API endpoints and technical details remain the same.
+
 ## Disclaimer
 
-This is an unofficial client library and is not affiliated with or endorsed by Visma. Use at your own risk.
+This is an unofficial client library and is not affiliated with or endorsed by Visma or Spiris. Use at your own risk.

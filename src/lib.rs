@@ -1,6 +1,6 @@
-//! # Visma eAccounting API Client for Rust
+//! # Spiris Bokföring och Fakturering API Client for Rust
 //!
-//! This crate provides a Rust client for the [Visma eAccounting API](https://developer.visma.com/api/eaccounting).
+//! This crate provides a Rust client for the [Spiris Bokföring och Fakturering API](https://developer.visma.com/api/eaccounting) (formerly Visma eAccounting).
 //!
 //! ## Features
 //!
@@ -15,7 +15,7 @@
 //! ## Quick Start
 //!
 //! ```no_run
-//! use visma_eaccounting::{Client, AccessToken};
+//! use spiris_bokforing::{Client, AccessToken};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,7 +36,7 @@
 //! ## OAuth2 Authentication
 //!
 //! ```no_run
-//! use visma_eaccounting::auth::{OAuth2Config, OAuth2Handler};
+//! use spiris_bokforing::auth::{OAuth2Config, OAuth2Handler};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -62,7 +62,7 @@
 //! ## Working with Customers
 //!
 //! ```no_run
-//! use visma_eaccounting::{Client, AccessToken, Customer, PaginationParams};
+//! use spiris_bokforing::{Client, AccessToken, Customer, PaginationParams};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! # let token = AccessToken::new("token".to_string(), 3600, None);
@@ -88,7 +88,7 @@
 //! ## Creating Invoices
 //!
 //! ```no_run
-//! use visma_eaccounting::{Client, AccessToken, Invoice, InvoiceRow};
+//! use spiris_bokforing::{Client, AccessToken, Invoice, InvoiceRow};
 //! use chrono::Utc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -116,7 +116,7 @@
 //! ## Advanced Configuration
 //!
 //! ```no_run
-//! use visma_eaccounting::{Client, AccessToken, ClientConfig, RetryConfig};
+//! use spiris_bokforing::{Client, AccessToken, ClientConfig, RetryConfig};
 //! use std::time::Duration;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -162,7 +162,7 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// # use visma_eaccounting::{Client, AccessToken};
+    /// # use spiris_bokforing::{Client, AccessToken};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # let token = AccessToken::new("token".to_string(), 3600, None);
     /// let client = Client::new(token);
@@ -179,7 +179,7 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// # use visma_eaccounting::{Client, AccessToken};
+    /// # use spiris_bokforing::{Client, AccessToken};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # let token = AccessToken::new("token".to_string(), 3600, None);
     /// let client = Client::new(token);
@@ -196,7 +196,7 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// # use visma_eaccounting::{Client, AccessToken};
+    /// # use spiris_bokforing::{Client, AccessToken};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # let token = AccessToken::new("token".to_string(), 3600, None);
     /// let client = Client::new(token);

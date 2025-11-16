@@ -5,13 +5,13 @@
 //! cargo run --example list_customers
 //! ```
 
-use visma_eaccounting::{AccessToken, Client, PaginationParams};
+use spiris_bokforing::{AccessToken, Client, PaginationParams};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // In a real application, you would obtain this token through OAuth2
-    let access_token = std::env::var("VISMA_ACCESS_TOKEN")
-        .expect("Please set VISMA_ACCESS_TOKEN environment variable");
+    let access_token = std::env::var("SPIRIS_ACCESS_TOKEN")
+        .expect("Please set SPIRIS_ACCESS_TOKEN environment variable");
 
     // Create an access token (expires in 1 hour)
     let token = AccessToken::new(access_token, 3600, None);

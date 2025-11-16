@@ -1,4 +1,4 @@
-//! Core HTTP client for the Visma eAccounting API.
+//! Core HTTP client for the Spiris Bokföring och Fakturering API.
 
 use crate::auth::AccessToken;
 use crate::error::{Error, Result};
@@ -9,7 +9,8 @@ use serde::Serialize;
 use std::sync::{Arc, RwLock};
 use url::Url;
 
-/// Default base URL for the Visma eAccounting API (v2).
+/// Default base URL for the Spiris Bokföring och Fakturering API (v2).
+/// Note: The API endpoint remains the same as the former Visma eAccounting.
 pub const DEFAULT_BASE_URL: &str = "https://eaccountingapi.vismaonline.com/v2/";
 
 /// Rate limit: 600 requests per minute per client per endpoint.
@@ -38,7 +39,7 @@ impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             base_url: DEFAULT_BASE_URL.to_string(),
-            user_agent: format!("visma-eaccounting-rust/{}", env!("CARGO_PKG_VERSION")),
+            user_agent: format!("spiris-bokforing-rust/{}", env!("CARGO_PKG_VERSION")),
             timeout_seconds: 30,
             retry_config: RetryConfig::default(),
             enable_tracing: true,
@@ -77,15 +78,15 @@ impl ClientConfig {
     }
 }
 
-/// Main API client for Visma eAccounting.
+/// Main API client for Spiris Bokföring och Fakturering.
 ///
 /// The client handles authentication, rate limiting, and HTTP communication
-/// with the Visma eAccounting API.
+/// with the Spiris API.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use visma_eaccounting::{Client, AccessToken};
+/// use spiris_bokforing::{Client, AccessToken};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {

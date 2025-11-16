@@ -1,6 +1,6 @@
 //! Example: OAuth2 authentication flow
 //!
-//! This example demonstrates how to authenticate with the Visma eAccounting API
+//! This example demonstrates how to authenticate with the Spiris Bokföring och Fakturering API
 //! using OAuth2.
 //!
 //! Run with:
@@ -8,16 +8,16 @@
 //! cargo run --example oauth_flow
 //! ```
 
-use visma_eaccounting::auth::{OAuth2Config, OAuth2Handler};
+use spiris_bokforing::auth::{OAuth2Config, OAuth2Handler};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get OAuth2 credentials from environment variables
     let client_id =
-        std::env::var("VISMA_CLIENT_ID").expect("Please set VISMA_CLIENT_ID environment variable");
-    let client_secret = std::env::var("VISMA_CLIENT_SECRET")
-        .expect("Please set VISMA_CLIENT_SECRET environment variable");
-    let redirect_uri = std::env::var("VISMA_REDIRECT_URI")
+        std::env::var("SPIRIS_CLIENT_ID").expect("Please set SPIRIS_CLIENT_ID environment variable");
+    let client_secret = std::env::var("SPIRIS_CLIENT_SECRET")
+        .expect("Please set SPIRIS_CLIENT_SECRET environment variable");
+    let redirect_uri = std::env::var("SPIRIS_REDIRECT_URI")
         .unwrap_or_else(|_| "http://localhost:8080/callback".to_string());
 
     // Create OAuth2 configuration

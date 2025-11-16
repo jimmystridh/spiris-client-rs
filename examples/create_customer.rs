@@ -5,13 +5,13 @@
 //! cargo run --example create_customer
 //! ```
 
-use visma_eaccounting::{AccessToken, Address, Client, Customer};
+use spiris_bokforing::{AccessToken, Address, Client, Customer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // In a real application, you would obtain this token through OAuth2
-    let access_token = std::env::var("VISMA_ACCESS_TOKEN")
-        .expect("Please set VISMA_ACCESS_TOKEN environment variable");
+    let access_token = std::env::var("SPIRIS_ACCESS_TOKEN")
+        .expect("Please set SPIRIS_ACCESS_TOKEN environment variable");
 
     // Create an access token
     let token = AccessToken::new(access_token, 3600, None);

@@ -6,17 +6,17 @@
 //! ```
 
 use chrono::Utc;
-use visma_eaccounting::{AccessToken, Client, Invoice, InvoiceRow};
+use spiris_bokforing::{AccessToken, Client, Invoice, InvoiceRow};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // In a real application, you would obtain this token through OAuth2
-    let access_token = std::env::var("VISMA_ACCESS_TOKEN")
-        .expect("Please set VISMA_ACCESS_TOKEN environment variable");
+    let access_token = std::env::var("SPIRIS_ACCESS_TOKEN")
+        .expect("Please set SPIRIS_ACCESS_TOKEN environment variable");
 
     // You also need a customer ID to create an invoice
-    let customer_id = std::env::var("VISMA_CUSTOMER_ID")
-        .expect("Please set VISMA_CUSTOMER_ID environment variable");
+    let customer_id = std::env::var("SPIRIS_CUSTOMER_ID")
+        .expect("Please set SPIRIS_CUSTOMER_ID environment variable");
 
     // Create an access token
     let token = AccessToken::new(access_token, 3600, None);

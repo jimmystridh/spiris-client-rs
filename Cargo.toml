@@ -1,12 +1,12 @@
 [package]
-name = "visma_eaccounting"
+name = "spiris_bokforing"
 version = "0.1.0"
 edition = "2021"
-authors = ["Visma eAccounting API Client Contributors"]
-description = "Rust client for the Visma eAccounting API"
+authors = ["Spiris Bokföring och Fakturering API Client Contributors"]
+description = "Rust client for the Spiris Bokföring och Fakturering API (formerly Visma eAccounting)"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jimmystridh/claude_jungle_bamboo"
-keywords = ["visma", "eaccounting", "api", "client"]
+keywords = ["spiris", "bokforing", "fakturering", "api", "accounting"]
 categories = ["api-bindings"]
 
 [dependencies]
