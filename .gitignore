@@ -1,7 +1,9 @@
 # Rust
 /target
+**/target
 **/*.rs.bk
 *.pdb
+Cargo.lock
 
 # IDE
 .vscode/
@@ -17,3 +19,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Spiris API tokens
+.spiris_token.json
