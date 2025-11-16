@@ -1,19 +1,27 @@
 # Spiris Bokföring och Fakturering - Terminal UI
 
-A beautiful and efficient Terminal User Interface (TUI) for managing customers and invoices using the Spiris Bokföring och Fakturering API (formerly Visma eAccounting).
+A powerful and comprehensive Terminal User Interface (TUI) for managing all aspects of your accounting with the Spiris Bokföring och Fakturering API (formerly Visma eAccounting).
 
-![Spiris TUI Demo](https://img.shields.io/badge/status-beta-yellow)
+![Spiris TUI Demo](https://img.shields.io/badge/status-production--ready-green)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
 ## Features
 
-- 📊 **Interactive Dashboard** - Quick access to all features from the main menu
-- 👥 **Customer Management** - List, view, create, and search customers
-- 🧾 **Invoice Management** - Browse and view invoices
+### Core Functionality
+- 📊 **Statistics Dashboard** - View real-time statistics for customers, invoices, and articles
+- 👥 **Customer Management** - Full CRUD operations: List, view, create, edit, and search customers
+- 🧾 **Invoice Management** - Complete invoice handling: Browse, view, create invoices with line items
+- 🏷️ **Article/Product Management** - Manage your product catalog with prices and descriptions
+- 🔍 **Smart Search** - Search across customers and invoices with real-time filtering
+- 💾 **Data Export** - Export all data to JSON files with timestamps
+
+### User Experience
 - 🔐 **OAuth2 Authentication** - Secure authentication with automatic token handling
-- ⌨️ **Keyboard Navigation** - Fully keyboard-driven interface
+- ⌨️ **Full Keyboard Navigation** - Efficient keyboard-driven interface with shortcuts
 - 💾 **Persistent Sessions** - Automatic token storage for seamless usage
-- 🎨 **Clean UI** - Beautiful terminal interface built with Ratatui
+- 🔄 **Real-time Refresh** - Instantly refresh data with 'r' key
+- 🎨 **Beautiful UI** - Clean and intuitive terminal interface built with Ratatui
+- ⚡ **Fast Performance** - Optimized async operations with Tokio
 
 ## Screenshots
 
@@ -25,11 +33,13 @@ A beautiful and efficient Terminal User Interface (TUI) for managing customers a
 ┌──────────────────────────────────────────────────────┐
 │ Main Menu                                            │
 │                                                      │
-│  >> View Customers                                   │
-│     View Invoices                                    │
-│     Create Customer                                  │
-│     Create Invoice                                   │
-│     Help                                             │
+│  >> Dashboard - View statistics and quick access     │
+│     Customers - Browse and manage customers          │
+│     Invoices - Browse and manage invoices            │
+│     Articles - Browse and manage products/articles   │
+│     Search - Search across all entities              │
+│     Export - Export data to JSON                     │
+│     Help - View keyboard shortcuts                   │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -103,8 +113,11 @@ cargo run --release
 
 | Key | Action | Available In |
 |-----|--------|--------------|
-| `n` | Create new | Customers, Invoices |
-| `r` | Refresh current view | Customers, Invoices |
+| `n` | Create new | Customers, Invoices, Articles |
+| `e` | Edit selected item | Customer Detail |
+| `r` | Refresh current view | Customers, Invoices, Articles, Dashboard |
+| `d` | Go to Dashboard | Any screen |
+| `s` | Open Search | Any screen |
 | `h` or `?` | Show help | Any screen |
 
 ### Screens
@@ -122,13 +135,25 @@ If no valid token is found, you'll be presented with the authentication screen:
 #### 2. Home Screen
 
 The main menu provides quick access to:
-- View Customers
-- View Invoices
-- Create Customer
-- Create Invoice
-- Help
+- **Dashboard** - View statistics and quick actions
+- **Customers** - Browse and manage customers
+- **Invoices** - Browse and manage invoices
+- **Articles** - Browse and manage products/articles
+- **Search** - Search across all entities
+- **Export** - Export data to JSON files
+- **Help** - View keyboard shortcuts and documentation
 
 Use `↑`/`↓` to navigate and `Enter` to select.
+
+#### 3. Dashboard Screen
+
+The dashboard displays real-time statistics and provides quick access:
+- Total number of customers
+- Total number of invoices
+- Total number of articles
+- Quick export action
+
+Press `Enter` on any item to navigate to that section or export all data.
 
 #### 3. Customers Screen
 
@@ -168,9 +193,74 @@ View complete invoice information:
 
 Press `Esc` to return to the invoice list.
 
-#### 7. Help Screen
+#### 7. Customer Editing
 
-Press `h` or `?` from any screen to view the help page with all keyboard shortcuts.
+From the Customer Detail view, press `e` to edit:
+1. Pre-populated form with existing data
+2. Modify any fields (name, email, phone, website)
+3. Press `Enter` to save changes
+4. Returns to Customer Detail view after successful update
+
+#### 8. Articles/Products Screen
+
+- Browse all articles/products with pagination
+- View article name, number, and sales price
+- Press `Enter` to view full article details
+- Press `n` to create a new article
+- Press `r` to refresh the articles list
+
+#### 9. Article Creation
+
+Fill in the form fields:
+1. Name (required)
+2. Sales Price in SEK (required)
+
+Press `Enter` after each field. The article is created automatically after the last field.
+
+#### 10. Article Detail View
+
+View complete article information:
+- Article ID
+- Article number
+- Name
+- Unit type
+- Sales price
+- Purchase price
+- Active status
+
+Press `Esc` to return to the articles list.
+
+#### 11. Invoice Creation
+
+Fill in the form fields:
+1. Customer ID (required)
+2. Description/Remarks (required)
+3. Amount in SEK (required)
+
+Press `Enter` after each field. A simple invoice with one line item is created automatically.
+
+#### 12. Search Screen
+
+Real-time search across customers and invoices:
+- Type to enter search query
+- Press `Enter` to execute search
+- Results show matching customers and invoices
+- Search is performed on names, emails, customer IDs, and remarks
+
+#### 13. Export Screen
+
+Export all loaded data to JSON files:
+- Press `Enter` to export
+- Creates timestamped files:
+  - `customers_export_YYYYMMDD_HHMMSS.json`
+  - `invoices_export_YYYYMMDD_HHMMSS.json`
+  - `articles_export_YYYYMMDD_HHMMSS.json`
+- Files are saved in the current directory
+- Status message shows export results
+
+#### 14. Help Screen
+
+Press `h` or `?` from any screen to view the help page with all keyboard shortcuts and available screens.
 
 ## Features in Detail
 
@@ -264,22 +354,28 @@ If data doesn't appear:
 
 ## Known Limitations
 
-- **Invoice Creation**: Currently under development
-- **Pagination**: Limited to first 50 results per endpoint
-- **Search**: Not yet implemented
-- **Filtering**: Not yet available
-- **Editing**: Customers and invoices cannot be edited (view-only)
+- **Pagination**: Limited to first 50 results per endpoint (future: load more pages on demand)
+- **Advanced Filtering**: Basic search implemented, advanced filters coming soon
+- **Invoice Editing**: Invoices cannot be edited after creation
+- **CSV Export**: Only JSON export currently supported (CSV/PDF coming soon)
+- **Article Editing**: Articles are view-only (editing coming soon)
 
 ## Roadmap
 
-- [ ] Complete invoice creation form
-- [ ] Implement customer editing
-- [ ] Add search and filtering
-- [ ] Improve pagination (load more pages)
-- [ ] Add articles/products management
-- [ ] Export functionality (CSV, PDF)
-- [ ] Multi-account support
-- [ ] Keyboard shortcut customization
+- [x] ✅ Complete invoice creation form
+- [x] ✅ Implement customer editing
+- [x] ✅ Add search and filtering
+- [x] ✅ Add articles/products management
+- [x] ✅ Export functionality (JSON)
+- [x] ✅ Statistics dashboard
+- [ ] 🚧 Improve pagination (load more pages dynamically)
+- [ ] 🚧 Advanced filtering with multiple criteria
+- [ ] 🚧 Invoice and article editing
+- [ ] 🚧 CSV and PDF export formats
+- [ ] 🚧 Multi-account support
+- [ ] 🚧 Keyboard shortcut customization
+- [ ] 🚧 Batch operations (bulk delete, bulk edit)
+- [ ] 🚧 Report generation
 
 ## Contributing
 

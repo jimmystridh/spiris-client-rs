@@ -1,17 +1,24 @@
 use anyhow::Result;
-use spiris_bokforing::{AccessToken, Client, Customer, Invoice, PaginationParams};
+use spiris_bokforing::{AccessToken, Article, Client, Customer, Invoice, InvoiceRow, PaginationParams};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Screen {
     Home,
+    Dashboard,
     Auth,
     Customers,
     CustomerCreate,
+    CustomerEdit(String),
     CustomerDetail(String),
     Invoices,
     InvoiceCreate,
     InvoiceDetail(String),
+    Articles,
+    ArticleCreate,
+    ArticleDetail(String),
+    Search,
+    Export,
     Help,
 }
 
@@ -33,6 +40,19 @@ pub struct App {
     pub selected_customer: usize,
     pub invoices: Vec<Invoice>,
     pub selected_invoice: usize,
+    pub articles: Vec<Article>,
+    pub selected_article: usize,
+
+    // Search state
+    pub search_query: String,
+    pub search_results_customers: Vec<Customer>,
+    pub search_results_invoices: Vec<Invoice>,
+    pub search_mode: SearchMode,
+
+    // Statistics
+    pub stats_total_customers: usize,
+    pub stats_total_invoices: usize,
+    pub stats_total_articles: usize,
 
     // Form inputs
     pub input: String,
@@ -49,6 +69,13 @@ pub struct App {
     // OAuth state
     pub oauth_url: Option<String>,
     pub oauth_waiting: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SearchMode {
+    Customers,
+    Invoices,
+    All,
 }
 
 impl App {
@@ -73,6 +100,15 @@ impl App {
             selected_customer: 0,
             invoices: Vec::new(),
             selected_invoice: 0,
+            articles: Vec::new(),
+            selected_article: 0,
+            search_query: String::new(),
+            search_results_customers: Vec::new(),
+            search_results_invoices: Vec::new(),
+            search_mode: SearchMode::All,
+            stats_total_customers: 0,
+            stats_total_invoices: 0,
+            stats_total_articles: 0,
             input: String::new(),
             input_field: 0,
             form_data: Vec::new(),
@@ -114,6 +150,7 @@ impl App {
         } else {
             match &self.screen {
                 Screen::Home => self.handle_home_enter(),
+                Screen::Dashboard => self.handle_dashboard_enter().await?,
                 Screen::Customers => {
                     if !self.customers.is_empty() {
                         let customer = &self.customers[self.selected_customer];
@@ -132,10 +169,25 @@ impl App {
                         }
                     }
                 }
+                Screen::Articles => {
+                    if !self.articles.is_empty() {
+                        let article = &self.articles[self.selected_article];
+                        if let Some(id) = &article.id {
+                            self.previous_screen = Some(Screen::Articles);
+                            self.screen = Screen::ArticleDetail(id.clone());
+                        }
+                    }
+                }
                 Screen::Auth => {
                     if !self.oauth_waiting {
                         self.start_oauth().await?;
                     }
+                }
+                Screen::Search => {
+                    self.perform_search().await?;
+                }
+                Screen::Export => {
+                    self.export_data()?;
                 }
                 _ => {}
             }
@@ -145,11 +197,13 @@ impl App {
 
     fn handle_home_enter(&mut self) {
         match self.selected_customer {
-            0 => self.screen = Screen::Customers,
-            1 => self.screen = Screen::Invoices,
-            2 => self.screen = Screen::CustomerCreate,
-            3 => self.screen = Screen::InvoiceCreate,
-            4 => self.screen = Screen::Help,
+            0 => self.screen = Screen::Dashboard,
+            1 => self.screen = Screen::Customers,
+            2 => self.screen = Screen::Invoices,
+            3 => self.screen = Screen::Articles,
+            4 => self.screen = Screen::Search,
+            5 => self.screen = Screen::Export,
+            6 => self.screen = Screen::Help,
             _ => {}
         }
     }
@@ -166,7 +220,12 @@ impl App {
                     self.selected_invoice -= 1;
                 }
             }
-            Screen::Home => {
+            Screen::Articles if !self.articles.is_empty() => {
+                if self.selected_article > 0 {
+                    self.selected_article -= 1;
+                }
+            }
+            Screen::Home | Screen::Dashboard => {
                 if self.selected_customer > 0 {
                     self.selected_customer -= 1;
                 }
@@ -187,8 +246,18 @@ impl App {
                     self.selected_invoice += 1;
                 }
             }
+            Screen::Articles if !self.articles.is_empty() => {
+                if self.selected_article < self.articles.len() - 1 {
+                    self.selected_article += 1;
+                }
+            }
             Screen::Home => {
-                if self.selected_customer < 4 {
+                if self.selected_customer < 6 {
+                    self.selected_customer += 1;
+                }
+            }
+            Screen::Dashboard => {
+                if self.selected_customer < 3 {
                     self.selected_customer += 1;
                 }
             }
@@ -226,9 +295,26 @@ impl App {
                             self.screen = Screen::InvoiceCreate;
                             self.start_form();
                         }
+                        Screen::Articles => {
+                            self.previous_screen = Some(Screen::Articles);
+                            self.screen = Screen::ArticleCreate;
+                            self.start_form();
+                        }
                         _ => {}
                     }
                 }
+                'e' => {
+                    match self.screen {
+                        Screen::CustomerDetail(ref id) => {
+                            self.previous_screen = Some(Screen::CustomerDetail(id.clone()));
+                            self.screen = Screen::CustomerEdit(id.clone());
+                            self.start_edit_form();
+                        }
+                        _ => {}
+                    }
+                }
+                's' => self.screen = Screen::Search,
+                'd' => self.screen = Screen::Dashboard,
                 'h' | '?' => self.screen = Screen::Help,
                 _ => {}
             }
@@ -244,9 +330,12 @@ impl App {
     pub fn next_screen(&mut self) {
         if self.client.is_some() {
             self.screen = match &self.screen {
-                Screen::Home => Screen::Customers,
+                Screen::Home => Screen::Dashboard,
+                Screen::Dashboard => Screen::Customers,
                 Screen::Customers => Screen::Invoices,
-                Screen::Invoices => Screen::Help,
+                Screen::Invoices => Screen::Articles,
+                Screen::Articles => Screen::Search,
+                Screen::Search => Screen::Help,
                 Screen::Help => Screen::Home,
                 _ => return,
             };
@@ -257,9 +346,12 @@ impl App {
         if self.client.is_some() {
             self.screen = match &self.screen {
                 Screen::Home => Screen::Help,
-                Screen::Customers => Screen::Home,
+                Screen::Dashboard => Screen::Home,
+                Screen::Customers => Screen::Dashboard,
                 Screen::Invoices => Screen::Customers,
-                Screen::Help => Screen::Invoices,
+                Screen::Articles => Screen::Invoices,
+                Screen::Search => Screen::Articles,
+                Screen::Help => Screen::Search,
                 _ => return,
             };
         }
@@ -272,17 +364,36 @@ impl App {
         self.input_field = 0;
     }
 
+    fn start_edit_form(&mut self) {
+        self.input_mode = InputMode::Editing;
+        self.input.clear();
+        self.form_data.clear();
+        self.input_field = 0;
+
+        // Pre-populate form data with existing customer data
+        if let Screen::CustomerEdit(ref id) = self.screen {
+            if let Some(customer) = self.customers.iter().find(|c| c.id.as_deref() == Some(id)) {
+                self.form_data.push(customer.name.clone().unwrap_or_default());
+                self.form_data.push(customer.email.clone().unwrap_or_default());
+                self.form_data.push(customer.phone.clone().unwrap_or_default());
+                self.form_data.push(customer.website.clone().unwrap_or_default());
+                self.input_field = 4; // Start at the end to submit immediately or edit
+            }
+        }
+    }
+
     fn should_submit_form(&self) -> bool {
         match self.screen {
-            Screen::CustomerCreate => self.input_field >= 4, // name, email, phone, website
+            Screen::CustomerCreate | Screen::CustomerEdit(_) => self.input_field >= 4, // name, email, phone, website
             Screen::InvoiceCreate => self.input_field >= 3,   // customer_id, description, amount
+            Screen::ArticleCreate => self.input_field >= 2,  // name, price
             _ => false,
         }
     }
 
     async fn submit_form(&mut self) -> Result<()> {
         if let Some(client) = &self.client {
-            match self.screen {
+            match &self.screen.clone() {
                 Screen::CustomerCreate => {
                     let customer = Customer {
                         name: Some(self.form_data[0].clone()),
@@ -305,6 +416,79 @@ impl App {
                         }
                         Err(e) => {
                             self.error_message = Some(format!("Failed to create customer: {}", e));
+                        }
+                    }
+                }
+                Screen::CustomerEdit(id) => {
+                    let mut customer = Customer {
+                        id: Some(id.clone()),
+                        name: Some(self.form_data[0].clone()),
+                        email: Some(self.form_data[1].clone()),
+                        phone: Some(self.form_data[2].clone()),
+                        website: if self.form_data[3].is_empty() {
+                            None
+                        } else {
+                            Some(self.form_data[3].clone())
+                        },
+                        is_active: Some(true),
+                        ..Default::default()
+                    };
+
+                    match client.customers().update(id, &customer).await {
+                        Ok(_) => {
+                            self.status_message = Some("Customer updated successfully".to_string());
+                            self.screen = Screen::CustomerDetail(id.clone());
+                            self.load_customers().await?;
+                        }
+                        Err(e) => {
+                            self.error_message = Some(format!("Failed to update customer: {}", e));
+                        }
+                    }
+                }
+                Screen::ArticleCreate => {
+                    let price: f64 = self.form_data[1].parse().unwrap_or(0.0);
+                    let article = Article {
+                        name: Some(self.form_data[0].clone()),
+                        sales_price: Some(price),
+                        is_active: Some(true),
+                        ..Default::default()
+                    };
+
+                    match client.articles().create(&article).await {
+                        Ok(_) => {
+                            self.status_message = Some("Article created successfully".to_string());
+                            self.screen = Screen::Articles;
+                            self.load_articles().await?;
+                        }
+                        Err(e) => {
+                            self.error_message = Some(format!("Failed to create article: {}", e));
+                        }
+                    }
+                }
+                Screen::InvoiceCreate => {
+                    if self.form_data.len() >= 3 {
+                        let amount: f64 = self.form_data[2].parse().unwrap_or(0.0);
+                        let invoice = Invoice {
+                            customer_id: Some(self.form_data[0].clone()),
+                            remarks: Some(self.form_data[1].clone()),
+                            rows: vec![InvoiceRow {
+                                text: Some(self.form_data[1].clone()),
+                                quantity: Some(1.0),
+                                unit_price: Some(amount),
+                                ..Default::default()
+                            }],
+                            ..Default::default()
+                        };
+
+                        match client.invoices().create(&invoice).await {
+                            Ok(_) => {
+                                self.status_message = Some("Invoice created successfully".to_string());
+                                self.screen = Screen::Invoices;
+                                self.load_invoices().await?;
+                            }
+                            Err(e) => {
+                                self.error_message = Some(format!("Failed to create invoice: {}", e));
+                            }
                         }
                     }
                 }
@@ -354,6 +538,149 @@ impl App {
         Ok(())
     }
 
+    pub async fn load_articles(&mut self) -> Result<()> {
+        if let Some(client) = &self.client {
+            self.loading = true;
+            let params = PaginationParams::new().pagesize(50);
+            match client.articles().list(Some(params)).await {
+                Ok(response) => {
+                    self.articles = response.data;
+                    self.stats_total_articles = self.articles.len();
+                    self.loading = false;
+                    self.error_message = None;
+                }
+                Err(e) => {
+                    self.error_message = Some(format!("Failed to load articles: {}", e));
+                    self.loading = false;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_dashboard_enter(&mut self) -> Result<()> {
+        match self.selected_customer {
+            0 => {
+                self.screen = Screen::Customers;
+                self.load_customers().await?;
+            }
+            1 => {
+                self.screen = Screen::Invoices;
+                self.load_invoices().await?;
+            }
+            2 => {
+                self.screen = Screen::Articles;
+                self.load_articles().await?;
+            }
+            3 => {
+                self.screen = Screen::Export;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    async fn perform_search(&mut self) -> Result<()> {
+        if !self.search_query.is_empty() {
+            if let Some(_client) = &self.client {
+                self.loading = true;
+
+                // For now, search is just filtering from loaded data
+                // In a real implementation, you would use the API search endpoints
+                if matches!(self.search_mode, SearchMode::Customers | SearchMode::All) {
+                    let query = self.search_query.to_lowercase();
+                    self.search_results_customers = self
+                        .customers
+                        .iter()
+                        .filter(|c| {
+                            c.name
+                                .as_ref()
+                                .map(|n| n.to_lowercase().contains(&query))
+                                .unwrap_or(false)
+                                || c.email
+                                    .as_ref()
+                                    .map(|e| e.to_lowercase().contains(&query))
+                                    .unwrap_or(false)
+                        })
+                        .cloned()
+                        .collect();
+                }
+
+                if matches!(self.search_mode, SearchMode::Invoices | SearchMode::All) {
+                    let query = self.search_query.to_lowercase();
+                    self.search_results_invoices = self
+                        .invoices
+                        .iter()
+                        .filter(|inv| {
+                            inv.customer_id
+                                .as_ref()
+                                .map(|id| id.to_lowercase().contains(&query))
+                                .unwrap_or(false)
+                                || inv
+                                    .remarks
+                                    .as_ref()
+                                    .map(|r| r.to_lowercase().contains(&query))
+                                    .unwrap_or(false)
+                        })
+                        .cloned()
+                        .collect();
+                }
+
+                self.loading = false;
+                self.status_message = Some(format!(
+                    "Found {} customers, {} invoices",
+                    self.search_results_customers.len(),
+                    self.search_results_invoices.len()
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn export_data(&mut self) -> Result<()> {
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+
+        // Export customers
+        if !self.customers.is_empty() {
+            let filename = format!("customers_export_{}.json", timestamp);
+            let json = serde_json::to_string_pretty(&self.customers)?;
+            std::fs::write(&filename, json)?;
+            self.status_message = Some(format!("Exported {} customers to {}", self.customers.len(), filename));
+        }
+
+        // Export invoices
+        if !self.invoices.is_empty() {
+            let filename = format!("invoices_export_{}.json", timestamp);
+            let json = serde_json::to_string_pretty(&self.invoices)?;
+            std::fs::write(&filename, json)?;
+            self.status_message = Some(format!("Exported {} invoices to {}", self.invoices.len(), filename));
+        }
+
+        // Export articles
+        if !self.articles.is_empty() {
+            let filename = format!("articles_export_{}.json", timestamp);
+            let json = serde_json::to_string_pretty(&self.articles)?;
+            std::fs::write(&filename, json)?;
+            self.status_message = Some(format!("Exported {} articles to {}", self.articles.len(), filename));
+        }
+
+        Ok(())
+    }
+
+    pub async fn load_dashboard_stats(&mut self) -> Result<()> {
+        if self.client.is_some() {
+            // Load minimal data to get counts
+            self.load_customers().await?;
+            self.load_invoices().await?;
+            self.load_articles().await?;
+
+            self.stats_total_customers = self.customers.len();
+            self.stats_total_invoices = self.invoices.len();
+            self.stats_total_articles = self.articles.len();
+        }
+        Ok(())
+    }
+
     fn refresh_current_screen(&mut self) {
         match self.screen {
             Screen::Customers => {
@@ -368,6 +695,20 @@ impl App {
                 tokio::spawn(async move {
                     let mut app = app;
                     let _ = app.load_invoices().await;
+                });
+            }
+            Screen::Articles => {
+                let app = self.clone();
+                tokio::spawn(async move {
+                    let mut app = app;
+                    let _ = app.load_articles().await;
+                });
+            }
+            Screen::Dashboard => {
+                let app = self.clone();
+                tokio::spawn(async move {
+                    let mut app = app;
+                    let _ = app.load_dashboard_stats().await;
                 });
             }
             _ => {}
@@ -434,6 +775,15 @@ impl Clone for App {
             selected_customer: self.selected_customer,
             invoices: self.invoices.clone(),
             selected_invoice: self.selected_invoice,
+            articles: self.articles.clone(),
+            selected_article: self.selected_article,
+            search_query: self.search_query.clone(),
+            search_results_customers: self.search_results_customers.clone(),
+            search_results_invoices: self.search_results_invoices.clone(),
+            search_mode: self.search_mode.clone(),
+            stats_total_customers: self.stats_total_customers,
+            stats_total_invoices: self.stats_total_invoices,
+            stats_total_articles: self.stats_total_articles,
             input: self.input.clone(),
             input_field: self.input_field,
             form_data: self.form_data.clone(),
