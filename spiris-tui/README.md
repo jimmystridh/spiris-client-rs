@@ -9,11 +9,12 @@ A powerful and comprehensive Terminal User Interface (TUI) for managing all aspe
 
 ### Core Functionality
 - 📊 **Statistics Dashboard** - View real-time statistics for customers, invoices, and articles
-- 👥 **Customer Management** - Full CRUD operations: List, view, create, edit, and search customers
-- 🧾 **Invoice Management** - Complete invoice handling: Browse, view, create invoices with line items
-- 🏷️ **Article/Product Management** - Manage your product catalog with prices and descriptions
+- 👥 **Customer Management** - Full CRUD operations: List, view, create, edit, delete, and search customers
+- 🧾 **Invoice Management** - Complete invoice handling: Browse, view, create, delete invoices with line items
+- 🏷️ **Article/Product Management** - Manage your product catalog: Create, view, delete articles with prices
 - 🔍 **Smart Search** - Search across customers and invoices with real-time filtering
 - 💾 **Data Export** - Export all data to JSON files with timestamps
+- ✅ **Input Validation** - Real-time validation for all form inputs with helpful error messages
 
 ### User Experience
 - 🔐 **OAuth2 Authentication** - Secure authentication with automatic token handling
@@ -119,6 +120,7 @@ cargo run --release
 |-----|--------|--------------|
 | `n` | Create new | Customers, Invoices, Articles |
 | `e` | Edit selected item | Customer Detail |
+| `x` | Delete selected item | Customer/Invoice/Article Detail |
 | `r` | Refresh current view | Customers, Invoices, Articles, Dashboard |
 | `d` | Go to Dashboard | Any screen |
 | `s` | Open Search | Any screen |
@@ -361,10 +363,11 @@ If data doesn't appear:
 ## Known Limitations
 
 - **Advanced Filtering**: Basic search implemented, advanced filters coming soon
-- **Invoice Editing**: Invoices cannot be edited after creation
+- **Invoice Editing**: Invoices cannot be edited after creation (can only delete)
 - **CSV Export**: Only JSON export currently supported (CSV/PDF coming soon)
-- **Article Editing**: Articles are view-only (editing coming soon)
+- **Article Editing**: Articles cannot be edited after creation (can only delete)
 - **Total Page Count**: Page count estimation is approximate (API doesn't return total count)
+- **Delete Confirmation**: No confirmation dialog before deleting (use with caution!)
 
 ## Roadmap
 
@@ -378,10 +381,11 @@ If data doesn't appear:
 - [x] ✅ Auto-clearing status/error messages
 - [x] ✅ Live search input with real-time updates
 - [x] ✅ Improved refresh mechanism
+- [x] ✅ Input validation for forms (email, numbers, required fields)
+- [x] ✅ Delete functionality for customers, invoices, and articles
 - [ ] 🚧 Advanced filtering with multiple criteria
 - [ ] 🚧 Invoice and article editing
 - [ ] 🚧 CSV and PDF export formats
-- [ ] 🚧 Input validation for forms
 - [ ] 🚧 Multi-account support
 - [ ] 🚧 Keyboard shortcut customization
 - [ ] 🚧 Batch operations (bulk delete, bulk edit)

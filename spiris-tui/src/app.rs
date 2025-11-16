@@ -69,6 +69,7 @@ pub struct App {
     pub status_message: Option<String>,
     pub error_message: Option<String>,
     pub message_timer: usize,
+    pub validation_error: Option<String>,
 
     // Loading state
     pub loading: bool,
@@ -127,6 +128,7 @@ impl App {
             status_message: None,
             error_message: None,
             message_timer: 0,
+            validation_error: None,
             loading: false,
             needs_refresh: false,
             oauth_url: None,
@@ -155,6 +157,12 @@ impl App {
 
     pub async fn handle_enter(&mut self) -> Result<()> {
         if self.input_mode == InputMode::Editing {
+            // Validate current input before proceeding
+            if !self.validate_current_input() {
+                // Validation failed, error message is already set
+                return Ok(());
+            }
+
             self.form_data.push(self.input.clone());
             self.input.clear();
             self.input_field += 1;
@@ -342,6 +350,21 @@ impl App {
                         _ => {}
                     }
                 }
+                'x' => {
+                    // Delete key - delete current item
+                    match &self.screen {
+                        Screen::CustomerDetail(ref id) => {
+                            self.delete_customer(id.clone());
+                        }
+                        Screen::InvoiceDetail(ref id) => {
+                            self.delete_invoice(id.clone());
+                        }
+                        Screen::ArticleDetail(ref id) => {
+                            self.delete_article(id.clone());
+                        }
+                        _ => {}
+                    }
+                }
                 's' => {
                     self.screen = Screen::Search;
                     self.search_input_mode = true;
@@ -417,6 +440,99 @@ impl App {
                 self.input_field = 4; // Start at the end to submit immediately or edit
             }
         }
+    }
+
+    fn validate_email(email: &str) -> bool {
+        // Simple email validation
+        email.contains('@') && email.contains('.') && email.len() > 3
+    }
+
+    fn validate_number(s: &str) -> bool {
+        s.parse::<f64>().is_ok() && s.parse::<f64>().unwrap_or(0.0) >= 0.0
+    }
+
+    fn validate_current_input(&mut self) -> bool {
+        self.validation_error = None;
+
+        match &self.screen {
+            Screen::CustomerCreate | Screen::CustomerEdit(_) => {
+                match self.input_field {
+                    0 => {
+                        // Name validation
+                        if self.input.trim().is_empty() {
+                            self.validation_error = Some("Name cannot be empty".to_string());
+                            return false;
+                        }
+                    }
+                    1 => {
+                        // Email validation
+                        if !Self::validate_email(&self.input) {
+                            self.validation_error = Some("Invalid email format".to_string());
+                            return false;
+                        }
+                    }
+                    2 => {
+                        // Phone validation (optional but if provided should not be empty)
+                        if self.input.trim().is_empty() {
+                            self.validation_error = Some("Phone cannot be empty".to_string());
+                            return false;
+                        }
+                    }
+                    3 => {
+                        // Website is optional, no validation
+                    }
+                    _ => {}
+                }
+            }
+            Screen::ArticleCreate => {
+                match self.input_field {
+                    0 => {
+                        // Name validation
+                        if self.input.trim().is_empty() {
+                            self.validation_error = Some("Article name cannot be empty".to_string());
+                            return false;
+                        }
+                    }
+                    1 => {
+                        // Price validation
+                        if !Self::validate_number(&self.input) {
+                            self.validation_error = Some("Price must be a valid positive number".to_string());
+                            return false;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Screen::InvoiceCreate => {
+                match self.input_field {
+                    0 => {
+                        // Customer ID validation
+                        if self.input.trim().is_empty() {
+                            self.validation_error = Some("Customer ID cannot be empty".to_string());
+                            return false;
+                        }
+                    }
+                    1 => {
+                        // Description validation
+                        if self.input.trim().is_empty() {
+                            self.validation_error = Some("Description cannot be empty".to_string());
+                            return false;
+                        }
+                    }
+                    2 => {
+                        // Amount validation
+                        if !Self::validate_number(&self.input) {
+                            self.validation_error = Some("Amount must be a valid positive number".to_string());
+                            return false;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+
+        true
     }
 
     fn should_submit_form(&self) -> bool {
@@ -774,6 +890,45 @@ impl App {
         self.message_timer = 50; // 5 seconds at 10 ticks per second
     }
 
+    fn delete_customer(&mut self, id: String) {
+        if let Some(client) = &self.client {
+            let client = client.clone();
+            let id_clone = id.clone();
+            tokio::spawn(async move {
+                let _ = client.customers().delete(&id_clone).await;
+            });
+            self.set_status("Customer deleted".to_string());
+            self.screen = Screen::Customers;
+            self.needs_refresh = true;
+        }
+    }
+
+    fn delete_invoice(&mut self, id: String) {
+        if let Some(client) = &self.client {
+            let client = client.clone();
+            let id_clone = id.clone();
+            tokio::spawn(async move {
+                let _ = client.invoices().delete(&id_clone).await;
+            });
+            self.set_status("Invoice deleted".to_string());
+            self.screen = Screen::Invoices;
+            self.needs_refresh = true;
+        }
+    }
+
+    fn delete_article(&mut self, id: String) {
+        if let Some(client) = &self.client {
+            let client = client.clone();
+            let id_clone = id.clone();
+            tokio::spawn(async move {
+                let _ = client.articles().delete(&id_clone).await;
+            });
+            self.set_status("Article deleted".to_string());
+            self.screen = Screen::Articles;
+            self.needs_refresh = true;
+        }
+    }
+
     async fn start_oauth(&mut self) -> Result<()> {
         self.oauth_waiting = true;
         self.status_message = Some("Starting OAuth flow...".to_string());
@@ -853,6 +1008,7 @@ impl Clone for App {
             status_message: self.status_message.clone(),
             error_message: self.error_message.clone(),
             message_timer: self.message_timer,
+            validation_error: self.validation_error.clone(),
             loading: self.loading,
             needs_refresh: self.needs_refresh,
             oauth_url: self.oauth_url.clone(),

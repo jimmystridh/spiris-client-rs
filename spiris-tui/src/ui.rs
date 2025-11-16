@@ -217,6 +217,14 @@ fn draw_customer_form(f: &mut Frame, area: Rect, app: &App) {
         text.push(line);
     }
 
+    if let Some(err) = &app.validation_error {
+        text.push(Line::from(""));
+        text.push(Line::from(Span::styled(
+            format!("⚠ {}", err),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )));
+    }
+
     if let Some(err) = &app.error_message {
         text.push(Line::from(""));
         text.push(Line::from(Span::styled(
@@ -272,7 +280,7 @@ fn draw_customer_detail(f: &mut Frame, area: Rect, app: &App, id: &str) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Customer Detail (Press 'e' to edit, ESC to go back)"),
+                .title("Customer Detail (e: edit | x: delete | ESC: back)"),
         )
         .wrap(Wrap { trim: false });
 
@@ -360,6 +368,14 @@ fn draw_invoice_form(f: &mut Frame, area: Rect, app: &App) {
         text.push(line);
     }
 
+    if let Some(err) = &app.validation_error {
+        text.push(Line::from(""));
+        text.push(Line::from(Span::styled(
+            format!("⚠ {}", err),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )));
+    }
+
     if let Some(err) = &app.error_message {
         text.push(Line::from(""));
         text.push(Line::from(Span::styled(
@@ -432,7 +448,7 @@ fn draw_invoice_detail(f: &mut Frame, area: Rect, app: &App, id: &str) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Invoice Detail (ESC to go back)"),
+                .title("Invoice Detail (x: delete | ESC: back)"),
         )
         .wrap(Wrap { trim: false });
 
@@ -455,7 +471,8 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from(""),
         Line::from("Actions:"),
         Line::from("  n              - Create new (customer/invoice/article)"),
-        Line::from("  e              - Edit selected item"),
+        Line::from("  e              - Edit selected item (customer)"),
+        Line::from("  x              - Delete selected item"),
         Line::from("  r              - Refresh current view"),
         Line::from("  d              - Go to Dashboard"),
         Line::from("  s              - Search"),
@@ -612,7 +629,7 @@ fn draw_article_detail(f: &mut Frame, area: Rect, app: &App, id: &str) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Article Detail (ESC to go back)"),
+                .title("Article Detail (x: delete | ESC: back)"),
         )
         .wrap(Wrap { trim: false });
 
@@ -637,6 +654,14 @@ fn draw_article_form(f: &mut Frame, area: Rect, app: &App) {
             Line::from(format!("{}: {}", field, value))
         };
         text.push(line);
+    }
+
+    if let Some(err) = &app.validation_error {
+        text.push(Line::from(""));
+        text.push(Line::from(Span::styled(
+            format!("⚠ {}", err),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )));
     }
 
     if let Some(err) = &app.error_message {
@@ -676,6 +701,14 @@ fn draw_customer_edit_form(f: &mut Frame, area: Rect, app: &App, _id: &str) {
             Line::from(format!("{}: {}", field, value))
         };
         text.push(line);
+    }
+
+    if let Some(err) = &app.validation_error {
+        text.push(Line::from(""));
+        text.push(Line::from(Span::styled(
+            format!("⚠ {}", err),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )));
     }
 
     if let Some(err) = &app.error_message {
