@@ -1,3 +1,37 @@
+//! Spiris TUI - Terminal User Interface for Spiris Bokföring API
+//!
+//! A comprehensive TUI application for managing customers, invoices, and articles
+//! through the Spiris Bokföring och Fakturering API (formerly Visma eAccounting).
+//!
+//! ## Features
+//!
+//! - Full CRUD operations for customers, invoices, and articles
+//! - Search and filtering capabilities
+//! - Data export to CSV and JSON
+//! - OAuth2 authentication
+//! - Real-time validation
+//! - Sorting and pagination
+//!
+//! ## Keyboard Shortcuts
+//!
+//! - `q`: Quit (when not in input mode)
+//! - `Tab`/`Shift+Tab`: Navigate between screens
+//! - `↑`/`↓`: Navigate lists
+//! - `←`/`→`: Previous/Next page
+//! - `n`: Create new entity (on customer/invoice/article screens)
+//! - `e`: Edit current entity (on detail screens)
+//! - `x`: Delete current entity (shows confirmation)
+//! - `r`: Refresh data
+//! - `s` or `/`: Open search
+//! - `m`: Cycle search mode (on search screen)
+//! - `d`: Dashboard
+//! - `c`: Customers
+//! - `i`: Invoices (when not in input mode)
+//! - `a`: Articles (when not in input mode)
+//! - `h` or `?`: Help
+//! - `Esc`: Go back/Cancel
+//! - `Enter`: Confirm/Open detail view
+
 mod app;
 mod auth;
 mod screens;

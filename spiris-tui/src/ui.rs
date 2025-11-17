@@ -334,7 +334,7 @@ fn draw_customers(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_customer_form(f: &mut Frame, area: Rect, app: &App) {
-    let fields = vec!["Name", "Email", "Phone", "Website (optional)"];
+    let fields = ["Name", "Email", "Phone", "Website (optional)"];
     let current_field = app.input_field;
 
     let mut text = vec![
@@ -517,7 +517,7 @@ fn draw_invoices(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_invoice_form(f: &mut Frame, area: Rect, app: &App) {
-    let fields = vec!["Customer ID", "Description/Remarks", "Amount (SEK)"];
+    let fields = ["Customer ID", "Description/Remarks", "Amount (SEK)"];
     let current_field = app.input_field;
 
     let mut text = vec![
@@ -631,7 +631,7 @@ fn draw_invoice_detail(f: &mut Frame, area: Rect, app: &App, id: &str) {
 }
 
 fn draw_invoice_edit_form(f: &mut Frame, area: Rect, app: &App, _id: &str) {
-    let fields = vec!["Customer ID", "Description/Remarks", "Amount (SEK)"];
+    let fields = ["Customer ID", "Description/Remarks", "Amount (SEK)"];
     let current_field = app.input_field;
 
     let mut text = vec![
@@ -956,7 +956,7 @@ fn draw_article_detail(f: &mut Frame, area: Rect, app: &App, id: &str) {
 }
 
 fn draw_article_edit_form(f: &mut Frame, area: Rect, app: &App, _id: &str) {
-    let fields = vec!["Name", "Sales Price (SEK)"];
+    let fields = ["Name", "Sales Price (SEK)"];
     let current_field = app.input_field;
 
     let mut text = vec![
@@ -1006,7 +1006,7 @@ fn draw_article_edit_form(f: &mut Frame, area: Rect, app: &App, _id: &str) {
 }
 
 fn draw_article_form(f: &mut Frame, area: Rect, app: &App) {
-    let fields = vec!["Name", "Sales Price (SEK)"];
+    let fields = ["Name", "Sales Price (SEK)"];
     let current_field = app.input_field;
 
     let mut text = vec![
@@ -1060,7 +1060,7 @@ fn draw_article_form(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_customer_edit_form(f: &mut Frame, area: Rect, app: &App, _id: &str) {
-    let fields = vec!["Name", "Email", "Phone", "Website (optional)"];
+    let fields = ["Name", "Email", "Phone", "Website (optional)"];
     let current_field = app.input_field;
 
     let mut text = vec![
@@ -1110,8 +1110,20 @@ fn draw_customer_edit_form(f: &mut Frame, area: Rect, app: &App, _id: &str) {
 }
 
 fn draw_search(f: &mut Frame, area: Rect, app: &App) {
+    use crate::app::SearchMode;
+
+    let mode_str = match app.search_mode {
+        SearchMode::All => "All",
+        SearchMode::Customers => "Customers Only",
+        SearchMode::Invoices => "Invoices Only",
+    };
+
     let mut text = vec![
         Line::from("Search Across Customers and Invoices"),
+        Line::from(Span::styled(
+            format!("Mode: {} (press 'm' to change)", mode_str),
+            Style::default().fg(Color::Cyan),
+        )),
         Line::from(""),
     ];
 

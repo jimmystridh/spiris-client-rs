@@ -16,6 +16,7 @@ pub async fn start_oauth_flow(
 }
 
 /// Exchange authorization code for access token
+#[allow(dead_code)]
 pub async fn exchange_code(
     client_id: String,
     client_secret: String,
@@ -29,6 +30,7 @@ pub async fn exchange_code(
 }
 
 /// Refresh an expired access token
+#[allow(dead_code)]
 pub async fn refresh_token(
     client_id: String,
     client_secret: String,

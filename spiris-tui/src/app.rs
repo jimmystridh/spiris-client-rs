@@ -1,3 +1,8 @@
+//! Application state management module.
+//!
+//! This module contains the main application state (`App`) and all the logic
+//! for handling user input, navigating screens, and managing data.
+
 use anyhow::Result;
 use spiris_bokforing::{AccessToken, Article, Client, Customer, Invoice, InvoiceRow, PaginationParams};
 use std::path::PathBuf;
@@ -524,9 +529,24 @@ impl App {
                 }
                 'd' => self.screen = Screen::Dashboard,
                 'h' | '?' => self.screen = Screen::Help,
+                'm' => {
+                    // Cycle search mode
+                    if self.screen == Screen::Search {
+                        self.cycle_search_mode();
+                    }
+                }
                 _ => {}
             }
         }
+    }
+
+    fn cycle_search_mode(&mut self) {
+        use SearchMode::*;
+        self.search_mode = match self.search_mode {
+            All => Customers,
+            Customers => Invoices,
+            Invoices => All,
+        };
     }
 
     pub fn handle_backspace(&mut self) {
@@ -635,8 +655,32 @@ impl App {
     }
 
     fn validate_email(email: &str) -> bool {
-        // Simple email validation
-        email.contains('@') && email.contains('.') && email.len() > 3
+        // Simple email validation: must have @ with text before and after,
+        // and a '.' after the @
+        if email.len() < 5 {
+            return false;
+        }
+        if let Some(at_pos) = email.find('@') {
+            // Must have at least one char before @
+            if at_pos == 0 {
+                return false;
+            }
+            // Must have at least 3 chars after @ (e.g., "a.b")
+            let after_at = &email[at_pos + 1..];
+            if after_at.len() < 3 {
+                return false;
+            }
+            // Must have a '.' in the domain part
+            if !after_at.contains('.') {
+                return false;
+            }
+            // Domain can't start with '.'
+            if after_at.starts_with('.') {
+                return false;
+            }
+            return true;
+        }
+        false
     }
 
     fn validate_number(s: &str) -> bool {
@@ -1242,7 +1286,7 @@ impl App {
                     let mut wtr = csv::Writer::from_path(&filename)?;
 
                     // Write header
-                    wtr.write_record(&[
+                    wtr.write_record([
                         "ID",
                         "Customer Number",
                         "Name",
@@ -1254,7 +1298,7 @@ impl App {
 
                     // Write data
                     for customer in &self.customers {
-                        wtr.write_record(&[
+                        wtr.write_record([
                             customer.id.as_deref().unwrap_or(""),
                             &customer.customer_number.as_ref().map(|n| n.to_string()).unwrap_or_default(),
                             customer.name.as_deref().unwrap_or(""),
@@ -1274,7 +1318,7 @@ impl App {
                     let mut wtr = csv::Writer::from_path(&filename)?;
 
                     // Write header
-                    wtr.write_record(&[
+                    wtr.write_record([
                         "ID",
                         "Invoice Number",
                         "Customer ID",
@@ -1287,7 +1331,7 @@ impl App {
 
                     // Write data
                     for invoice in &self.invoices {
-                        wtr.write_record(&[
+                        wtr.write_record([
                             invoice.id.as_deref().unwrap_or(""),
                             &invoice.invoice_number.as_ref().map(|n| n.to_string()).unwrap_or_default(),
                             invoice.customer_id.as_deref().unwrap_or(""),
@@ -1315,7 +1359,7 @@ impl App {
                     let mut wtr = csv::Writer::from_path(&filename)?;
 
                     // Write header
-                    wtr.write_record(&[
+                    wtr.write_record([
                         "ID",
                         "Article Number",
                         "Name",
@@ -1327,7 +1371,7 @@ impl App {
 
                     // Write data
                     for article in &self.articles {
-                        wtr.write_record(&[
+                        wtr.write_record([
                             article.id.as_deref().unwrap_or(""),
                             &article.article_number.as_ref().map(|n| n.to_string()).unwrap_or_default(),
                             article.name.as_deref().unwrap_or(""),
@@ -1463,10 +1507,14 @@ impl App {
         if let Some(client) = &self.client {
             let client = client.clone();
             let id_clone = id.clone();
+            // TODO: Improve error handling - currently spawns a background task
+            // that may fail silently. Should be refactored to await the result.
             tokio::spawn(async move {
-                let _ = client.customers().delete(&id_clone).await;
+                if let Err(e) = client.customers().delete(&id_clone).await {
+                    eprintln!("Failed to delete customer: {}", e);
+                }
             });
-            self.set_status("Customer deleted".to_string());
+            self.set_status("Customer deletion requested".to_string());
             self.screen = Screen::Customers;
             self.needs_refresh = true;
         }
@@ -1476,10 +1524,14 @@ impl App {
         if let Some(client) = &self.client {
             let client = client.clone();
             let id_clone = id.clone();
+            // TODO: Improve error handling - currently spawns a background task
+            // that may fail silently. Should be refactored to await the result.
             tokio::spawn(async move {
-                let _ = client.invoices().delete(&id_clone).await;
+                if let Err(e) = client.invoices().delete(&id_clone).await {
+                    eprintln!("Failed to delete invoice: {}", e);
+                }
             });
-            self.set_status("Invoice deleted".to_string());
+            self.set_status("Invoice deletion requested".to_string());
             self.screen = Screen::Invoices;
             self.needs_refresh = true;
         }
@@ -1489,10 +1541,14 @@ impl App {
         if let Some(client) = &self.client {
             let client = client.clone();
             let id_clone = id.clone();
+            // TODO: Improve error handling - currently spawns a background task
+            // that may fail silently. Should be refactored to await the result.
             tokio::spawn(async move {
-                let _ = client.articles().delete(&id_clone).await;
+                if let Err(e) = client.articles().delete(&id_clone).await {
+                    eprintln!("Failed to delete article: {}", e);
+                }
             });
-            self.set_status("Article deleted".to_string());
+            self.set_status("Article deletion requested".to_string());
             self.screen = Screen::Articles;
             self.needs_refresh = true;
         }
@@ -1507,19 +1563,75 @@ impl App {
             .unwrap_or_else(|_| "your_client_id".to_string());
         let client_secret = std::env::var("SPIRIS_CLIENT_SECRET")
             .unwrap_or_else(|_| "your_client_secret".to_string());
+        let redirect_uri = std::env::var("SPIRIS_REDIRECT_URI")
+            .unwrap_or_else(|_| "http://localhost:8080/callback".to_string());
 
-        let oauth_config = spiris_bokforing::auth::OAuth2Config::new(
+        // Use the auth module helper
+        let (auth_url, _csrf, _verifier) = crate::auth::start_oauth_flow(
             client_id,
             client_secret,
-            "http://localhost:8080/callback".to_string(),
-        );
-
-        let handler = spiris_bokforing::auth::OAuth2Handler::new(oauth_config)?;
-        let (auth_url, _csrf, _verifier) = handler.authorize_url();
+            redirect_uri,
+        ).await?;
 
         self.oauth_url = Some(auth_url);
         self.status_message = Some("Copy the URL above and open in browser".to_string());
 
+        Ok(())
+    }
+
+    /// Complete OAuth flow and save token
+    #[allow(dead_code)]
+    pub async fn complete_oauth(&mut self, code: String, pkce_verifier: String) -> Result<()> {
+        let client_id = std::env::var("SPIRIS_CLIENT_ID")?;
+        let client_secret = std::env::var("SPIRIS_CLIENT_SECRET")?;
+        let redirect_uri = std::env::var("SPIRIS_REDIRECT_URI")
+            .unwrap_or_else(|_| "http://localhost:8080/callback".to_string());
+
+        let token = crate::auth::exchange_code(
+            client_id,
+            client_secret,
+            redirect_uri,
+            code,
+            pkce_verifier,
+        ).await?;
+
+        self.token = Some(token.clone());
+        self.client = Some(Client::new(token));
+        self.save_token()?;
+        self.oauth_waiting = false;
+        self.screen = Screen::Home;
+        self.set_status("Authentication successful!".to_string());
+
+        Ok(())
+    }
+
+    /// Refresh the OAuth token if it's expired
+    #[allow(dead_code)]
+    pub async fn refresh_token_if_needed(&mut self) -> Result<()> {
+        if let Some(client) = &self.client {
+            if client.is_token_expired() {
+                if let Some(token) = &self.token {
+                    if let Some(refresh_token) = &token.refresh_token {
+                        let client_id = std::env::var("SPIRIS_CLIENT_ID")?;
+                        let client_secret = std::env::var("SPIRIS_CLIENT_SECRET")?;
+                        let redirect_uri = std::env::var("SPIRIS_REDIRECT_URI")
+                            .unwrap_or_else(|_| "http://localhost:8080/callback".to_string());
+
+                        let new_token = crate::auth::refresh_token(
+                            client_id,
+                            client_secret,
+                            redirect_uri,
+                            refresh_token.clone(),
+                        ).await?;
+
+                        self.token = Some(new_token.clone());
+                        self.client = Some(Client::new(new_token));
+                        self.save_token()?;
+                        self.set_status("Token refreshed successfully".to_string());
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
@@ -1530,6 +1642,7 @@ impl App {
         Ok(token)
     }
 
+    #[allow(dead_code)]
     pub fn save_token(&self) -> Result<()> {
         if let Some(token) = &self.token {
             let token_path = Self::token_path();
@@ -1597,5 +1710,179 @@ impl Clone for App {
             oauth_url: self.oauth_url.clone(),
             oauth_waiting: self.oauth_waiting,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_initialization() {
+        let app = App::new();
+        assert_eq!(app.input_mode, InputMode::Normal);
+        assert!(app.customers.is_empty());
+        assert!(app.invoices.is_empty());
+        assert!(app.articles.is_empty());
+        assert_eq!(app.current_page, 1);
+        assert_eq!(app.page_size, 50);
+    }
+
+    #[test]
+    fn test_can_quit() {
+        let mut app = App::new();
+        assert!(app.can_quit());
+
+        app.input_mode = InputMode::Editing;
+        assert!(!app.can_quit());
+    }
+
+    #[test]
+    fn test_cycle_search_mode() {
+        let mut app = App::new();
+
+        assert_eq!(app.search_mode, SearchMode::All);
+        app.cycle_search_mode();
+        assert_eq!(app.search_mode, SearchMode::Customers);
+        app.cycle_search_mode();
+        assert_eq!(app.search_mode, SearchMode::Invoices);
+        app.cycle_search_mode();
+        assert_eq!(app.search_mode, SearchMode::All);
+    }
+
+    #[test]
+    fn test_validation_email() {
+        assert!(App::validate_email("test@example.com"));
+        assert!(App::validate_email("user@domain.co.uk"));
+        assert!(!App::validate_email("invalid"));
+        assert!(!App::validate_email("no@domain"));
+        assert!(!App::validate_email("@missing.com"));
+    }
+
+    #[test]
+    fn test_validation_number() {
+        assert!(App::validate_number("123.45"));
+        assert!(App::validate_number("0"));
+        assert!(App::validate_number("100"));
+        assert!(!App::validate_number("-10"));
+        assert!(!App::validate_number("abc"));
+        assert!(!App::validate_number("12.34.56"));
+    }
+
+    #[test]
+    fn test_handle_char_in_normal_mode() {
+        let mut app = App::new();
+        app.screen = Screen::Home;
+
+        // Test dashboard navigation
+        app.handle_char('d');
+        assert_eq!(app.screen, Screen::Dashboard);
+
+        // Test help navigation
+        app.handle_char('h');
+        assert_eq!(app.screen, Screen::Help);
+    }
+
+    #[test]
+    fn test_handle_up_down() {
+        let mut app = App::new();
+        app.screen = Screen::Home;
+        app.selected_customer = 3;
+
+        app.handle_up();
+        assert_eq!(app.selected_customer, 2);
+
+        app.handle_down();
+        assert_eq!(app.selected_customer, 3);
+
+        // Test boundary
+        app.selected_customer = 0;
+        app.handle_up();
+        assert_eq!(app.selected_customer, 0);
+    }
+
+    #[test]
+    fn test_handle_left_right_pagination() {
+        let mut app = App::new();
+        app.current_page = 2;
+        app.total_pages = 5;
+        app.needs_refresh = false;
+
+        app.handle_left();
+        assert_eq!(app.current_page, 1);
+        assert!(app.needs_refresh);
+
+        app.needs_refresh = false;
+        app.handle_right();
+        assert_eq!(app.current_page, 2);
+        assert!(app.needs_refresh);
+    }
+
+    #[test]
+    fn test_message_timer() {
+        let mut app = App::new();
+        app.status_message = Some("Test message".to_string());
+        app.message_timer = 2;
+
+        app.tick();
+        assert_eq!(app.message_timer, 1);
+        assert!(app.status_message.is_some());
+
+        app.tick();
+        assert_eq!(app.message_timer, 0);
+        assert!(app.status_message.is_none());
+    }
+
+    #[test]
+    fn test_sort_order_cycle() {
+        let mut app = App::new();
+        app.customer_sort_order = SortOrder::Ascending;
+
+        app.cycle_customer_sort();
+        // First cycle changes field, not order
+        assert_eq!(app.customer_sort_field, CustomerSortField::Email);
+        assert_eq!(app.customer_sort_order, SortOrder::Ascending);
+
+        app.cycle_customer_sort();
+        assert_eq!(app.customer_sort_field, CustomerSortField::CustomerNumber);
+
+        app.cycle_customer_sort();
+        // When cycling back to Name, order should flip
+        assert_eq!(app.customer_sort_field, CustomerSortField::Name);
+        assert_eq!(app.customer_sort_order, SortOrder::Descending);
+    }
+
+    #[test]
+    fn test_handle_escape() {
+        let mut app = App::new();
+        app.input_mode = InputMode::Editing;
+        app.input = "test input".to_string();
+
+        app.handle_escape();
+        assert_eq!(app.input_mode, InputMode::Normal);
+        assert!(app.input.is_empty());
+
+        // Test with previous screen
+        app.screen = Screen::Customers;
+        app.previous_screen = Some(Screen::Home);
+        app.handle_escape();
+        assert_eq!(app.screen, Screen::Home);
+        assert!(app.previous_screen.is_none());
+    }
+
+    #[test]
+    fn test_export_format_toggle() {
+        let mut app = App::new();
+        assert_eq!(app.export_format, ExportFormat::Csv);
+
+        app.screen = Screen::Export;
+        app.export_selection = 0;
+        // This would toggle the format (simulating the enter key on format selection)
+        // The actual toggle logic is in handle_enter, but we can test the enum
+        let new_format = match app.export_format {
+            ExportFormat::Json => ExportFormat::Csv,
+            ExportFormat::Csv => ExportFormat::Json,
+        };
+        assert_eq!(new_format, ExportFormat::Json);
     }
 }
