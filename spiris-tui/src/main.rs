@@ -35,6 +35,7 @@
 mod app;
 mod auth;
 mod config;
+mod help;
 mod screens;
 mod ui;
 

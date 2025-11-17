@@ -241,6 +241,16 @@ impl App {
         self.input_mode == InputMode::Normal
     }
 
+    /// Get context-aware keyboard shortcuts for status bar
+    pub fn get_status_shortcuts(&self) -> String {
+        if !self.config.display.show_keyboard_hints {
+            return String::new();
+        }
+
+        let shortcuts = crate::help::get_context_shortcuts(&self.screen, self.batch_mode);
+        shortcuts.join(" | ")
+    }
+
     pub fn handle_escape(&mut self) {
         if self.confirm_delete.is_some() {
             // Cancel delete confirmation
@@ -1362,14 +1372,41 @@ impl App {
     }
 
     fn export_data(&mut self) -> Result<()> {
-        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        // Get export directory from config
+        let export_dir = if self.config.export.export_directory == "." {
+            std::env::current_dir()?
+        } else {
+            let path = PathBuf::from(&self.config.export.export_directory);
+            // Expand ~ to home directory
+            let expanded = if path.starts_with("~") {
+                if let Ok(home) = std::env::var("HOME") {
+                    PathBuf::from(home).join(path.strip_prefix("~").unwrap())
+                } else {
+                    path
+                }
+            } else {
+                path
+            };
+            // Create directory if it doesn't exist
+            if !expanded.exists() {
+                std::fs::create_dir_all(&expanded)?;
+            }
+            expanded
+        };
+
+        let timestamp_str = if self.config.export.include_timestamp {
+            format!("_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"))
+        } else {
+            String::new()
+        };
+
         let mut messages = Vec::new();
 
         match self.export_format {
             ExportFormat::Json => {
                 // Export customers
                 if !self.customers.is_empty() {
-                    let filename = format!("customers_export_{}.json", timestamp);
+                    let filename = export_dir.join(format!("customers_export{}.json", timestamp_str));
                     let json = serde_json::to_string_pretty(&self.customers)?;
                     std::fs::write(&filename, json)?;
                     messages.push(format!("{} customers", self.customers.len()));
@@ -1377,7 +1414,7 @@ impl App {
 
                 // Export invoices
                 if !self.invoices.is_empty() {
-                    let filename = format!("invoices_export_{}.json", timestamp);
+                    let filename = export_dir.join(format!("invoices_export{}.json", timestamp_str));
                     let json = serde_json::to_string_pretty(&self.invoices)?;
                     std::fs::write(&filename, json)?;
                     messages.push(format!("{} invoices", self.invoices.len()));
@@ -1385,7 +1422,7 @@ impl App {
 
                 // Export articles
                 if !self.articles.is_empty() {
-                    let filename = format!("articles_export_{}.json", timestamp);
+                    let filename = export_dir.join(format!("articles_export{}.json", timestamp_str));
                     let json = serde_json::to_string_pretty(&self.articles)?;
                     std::fs::write(&filename, json)?;
                     messages.push(format!("{} articles", self.articles.len()));
@@ -1394,7 +1431,7 @@ impl App {
             ExportFormat::Csv => {
                 // Export customers to CSV
                 if !self.customers.is_empty() {
-                    let filename = format!("customers_export_{}.csv", timestamp);
+                    let filename = export_dir.join(format!("customers_export{}.csv", timestamp_str));
                     let mut wtr = csv::Writer::from_path(&filename)?;
 
                     // Write header
@@ -1426,7 +1463,7 @@ impl App {
 
                 // Export invoices to CSV
                 if !self.invoices.is_empty() {
-                    let filename = format!("invoices_export_{}.csv", timestamp);
+                    let filename = export_dir.join(format!("invoices_export{}.csv", timestamp_str));
                     let mut wtr = csv::Writer::from_path(&filename)?;
 
                     // Write header
@@ -1467,7 +1504,7 @@ impl App {
 
                 // Export articles to CSV
                 if !self.articles.is_empty() {
-                    let filename = format!("articles_export_{}.csv", timestamp);
+                    let filename = export_dir.join(format!("articles_export{}.csv", timestamp_str));
                     let mut wtr = csv::Writer::from_path(&filename)?;
 
                     // Write header
