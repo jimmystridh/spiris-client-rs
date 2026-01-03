@@ -60,7 +60,7 @@ jobs:
           VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          VERSIONS=$(curl -s "https://crates.io/api/v1/crates/spiris/versions" | jq -r '.versions[].num' 2>/dev/null || echo "")
+          VERSIONS=$(curl -sS -H "User-Agent: spiris-ci/1.0" "https://crates.io/api/v1/crates/spiris/versions" | jq -r '.versions[].num' 2>/dev/null || echo "")
           if echo "$VERSIONS" | grep -q "^${VERSION}$"; then
             echo "Version $VERSION already exists on crates.io"
             echo "should_publish=false" >> $GITHUB_OUTPUT
